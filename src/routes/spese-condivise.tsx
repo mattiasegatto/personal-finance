@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
-import { equalShares, eur, netBalances, type SharedExpense } from "@/lib/domain";
+import { dateFull, dateShort as dateLabel, equalShares, eur, monthLabel, monthShort, netBalances, type SharedExpense } from "@/lib/domain";
 import { categories, memberName, members, settlements, sharedExpenses } from "@/lib/mock-data";
 
 export const Route = createFileRoute("/spese-condivise")({
@@ -27,9 +27,6 @@ export const Route = createFileRoute("/spese-condivise")({
   component: SharedPage,
 });
 
-const monthLabel = (ym: string) =>
-  new Date(ym + "-01").toLocaleDateString("it-IT", { month: "long", year: "numeric" });
-const dateLabel = (d: string) => new Date(d).toLocaleDateString("it-IT", { day: "2-digit", month: "short" });
 const splitLabel = { equal: "50 / 50", percent: "Percentuale", amount: "Importi" } as const;
 
 function Avatar({ id }: { id: string }) {
@@ -67,7 +64,7 @@ function SharedPage() {
 
   const monthly = [...months].reverse().map((ym) => {
     const list = expenses.filter((e) => e.date.startsWith(ym));
-    const row: Record<string, number | string> = { mese: new Date(ym + "-01").toLocaleDateString("it-IT", { month: "short" }) };
+    const row: Record<string, number | string> = { mese: monthShort(ym) };
     for (const m of members) row[m.name] = list.filter((e) => e.paidBy === m.id).reduce((a, e) => a + e.amount, 0);
     return row;
   });
@@ -133,10 +130,10 @@ function SharedPage() {
       {/* Filtri */}
       <div className="mt-8 flex flex-wrap gap-3">
         <Select value={period} onValueChange={setPeriod}>
-          <SelectTrigger className="w-44 bg-card capitalize"><SelectValue>{period === "all" ? "Tutti i periodi" : monthLabel(period)}</SelectValue></SelectTrigger>
+          <SelectTrigger className="w-44 bg-card"><SelectValue>{period === "all" ? "Tutti i periodi" : monthLabel(period)}</SelectValue></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tutti i periodi</SelectItem>
-            {months.map((m) => <SelectItem key={m} value={m} className="capitalize">{monthLabel(m)}</SelectItem>)}
+            {months.map((m) => <SelectItem key={m} value={m}>{monthLabel(m)}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={category} onValueChange={setCategory}>
@@ -225,7 +222,7 @@ function SharedPage() {
               const list = expenses.filter((e) => e.date.startsWith(ym));
               return (
                 <div key={ym} className="flex items-center justify-between rounded-xl border bg-card px-5 py-4">
-                  <div><p className="font-medium capitalize">{monthLabel(ym)}</p><p className="text-xs text-muted-foreground">{list.length} spese</p></div>
+                  <div><p className="font-medium">{monthLabel(ym)}</p><p className="text-xs text-muted-foreground">{list.length} spese</p></div>
                   <p className="num font-display text-xl">{eur(list.reduce((a, e) => a + e.amount, 0))}</p>
                 </div>
               );
@@ -240,7 +237,7 @@ function SharedPage() {
               {timeline.map((ev) => (
                 <li key={ev.id} className="flex items-center gap-4 px-5 py-3 text-sm">
                   <span className="w-16 text-muted-foreground">{dateLabel(ev.date)}</span>
-                  <span className="flex-1">{ev.label} {ev.type !== "spesa" && <Badge variant="outline" className="ml-1 capitalize">{ev.type}</Badge>}</span>
+                  <span className="flex-1">{ev.label} {ev.type !== "spesa" && <Badge variant="outline" className="ml-1">{ev.type}</Badge>}</span>
                   <span className={`num w-24 text-right ${ev.delta >= 0 ? "text-positive" : "text-negative"}`}>{ev.delta >= 0 ? "+" : ""}{eur(ev.delta)}</span>
                   <span className="num w-28 text-right font-semibold">{eur(ev.balance)}</span>
                 </li>
@@ -254,7 +251,7 @@ function SharedPage() {
             <div key={s.id} className="flex flex-wrap items-center gap-4 rounded-xl border bg-card px-5 py-4">
               <Badge className={s.kind === "pareggio" ? "bg-primary" : "bg-transfer"}>{s.kind === "pareggio" ? "Pareggio" : "Rimborso"}</Badge>
               <div className="flex items-center gap-2 text-sm"><Avatar id={s.from} /><ArrowRight className="h-4 w-4 text-muted-foreground" /><Avatar id={s.to} /></div>
-              <div className="flex-1 text-sm"><p className="font-medium">{s.note}</p><p className="text-xs text-muted-foreground">{new Date(s.date).toLocaleDateString("it-IT")}</p></div>
+              <div className="flex-1 text-sm"><p className="font-medium">{s.note}</p><p className="text-xs text-muted-foreground">{dateFull(s.date)}</p></div>
               <p className="num font-display text-xl">{eur(s.amount)}</p>
             </div>
           ))}

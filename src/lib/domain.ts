@@ -116,5 +116,13 @@ export function netBalances(expenses: SharedExpense[], settlements: Settlement[]
   return bal;
 }
 
-export const eur = (v: number) =>
-  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(v);
+/** Formattazione deterministica (uguale su server e browser). */
+export const eur = (v: number) => {
+  const [i, d] = Math.abs(v).toFixed(2).split(".");
+  return `${v < 0 ? "-" : ""}${i!.replace(/\B(?=(\d{3})+(?!\d))/g, ".")},${d} €`;
+};
+const MESI = ["gennaio","febbraio","marzo","aprile","maggio","giugno","luglio","agosto","settembre","ottobre","novembre","dicembre"];
+export const monthLabel = (ym: string) => { const [y, m] = ym.split("-"); const n = MESI[Number(m) - 1]!; return `${n[0]!.toUpperCase()}${n.slice(1)} ${y}`; };
+export const monthShort = (ym: string) => MESI[Number(ym.slice(5, 7)) - 1]!.slice(0, 3);
+export const dateShort = (d: string) => `${d.slice(8, 10)} ${monthShort(d)}`;
+export const dateFull = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`;
