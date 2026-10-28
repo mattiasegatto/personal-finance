@@ -18,6 +18,7 @@ import { Route as PatrimonioRouteImport } from './routes/patrimonio'
 import { Route as ReportRouteImport } from './routes/report'
 import { Route as RicorrentiRouteImport } from './routes/ricorrenti'
 import { Route as ScadenzeRouteImport } from './routes/scadenze'
+import { Route as SpeseCondiviseRouteImport } from './routes/spese-condivise'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -64,6 +65,11 @@ const ScadenzeRoute = ScadenzeRouteImport.update({
   path: '/scadenze',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SpeseCondiviseRoute = SpeseCondiviseRouteImport.update({
+  id: '/spese-condivise',
+  path: '/spese-condivise',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -75,6 +81,7 @@ export interface FileRoutesByFullPath {
   '/report': typeof ReportRoute
   '/ricorrenti': typeof RicorrentiRoute
   '/scadenze': typeof ScadenzeRoute
+  '/spese-condivise': typeof SpeseCondiviseRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -86,6 +93,7 @@ export interface FileRoutesByTo {
   '/report': typeof ReportRoute
   '/ricorrenti': typeof RicorrentiRoute
   '/scadenze': typeof ScadenzeRoute
+  '/spese-condivise': typeof SpeseCondiviseRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -98,6 +106,7 @@ export interface FileRoutesById {
   '/report': typeof ReportRoute
   '/ricorrenti': typeof RicorrentiRoute
   '/scadenze': typeof ScadenzeRoute
+  '/spese-condivise': typeof SpeseCondiviseRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -111,6 +120,7 @@ export interface FileRouteTypes {
     | '/report'
     | '/ricorrenti'
     | '/scadenze'
+    | '/spese-condivise'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -122,6 +132,7 @@ export interface FileRouteTypes {
     | '/report'
     | '/ricorrenti'
     | '/scadenze'
+    | '/spese-condivise'
   id:
     | '__root__'
     | '/'
@@ -133,6 +144,7 @@ export interface FileRouteTypes {
     | '/report'
     | '/ricorrenti'
     | '/scadenze'
+    | '/spese-condivise'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -145,6 +157,7 @@ export interface RootRouteChildren {
   ReportRoute: typeof ReportRoute
   RicorrentiRoute: typeof RicorrentiRoute
   ScadenzeRoute: typeof ScadenzeRoute
+  SpeseCondiviseRoute: typeof SpeseCondiviseRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -212,6 +225,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ScadenzeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/spese-condivise': {
+      id: '/spese-condivise'
+      path: '/spese-condivise'
+      fullPath: '/spese-condivise'
+      preLoaderRoute: typeof SpeseCondiviseRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -225,6 +245,7 @@ const rootRouteChildren: RootRouteChildren = {
   ReportRoute: ReportRoute,
   RicorrentiRoute: RicorrentiRoute,
   ScadenzeRoute: ScadenzeRoute,
+  SpeseCondiviseRoute: SpeseCondiviseRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
