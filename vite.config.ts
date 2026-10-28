@@ -11,7 +11,7 @@ export default defineConfig({
     // Pre-bundle UI deps so Vite never re-optimizes mid-session (duplicate React copies crash hooks).
     optimizeDeps: {
       include: [
-        "@radix-ui/react-tooltip", "@radix-ui/react-dialog", "@radix-ui/react-select",
+        "@radix-ui/react-tooltip", "@radix-ui/react-dialog", "@radix-ui/react-alert-dialog", "@radix-ui/react-select",
         "@radix-ui/react-tabs", "@radix-ui/react-slider", "@radix-ui/react-slot",
         "@radix-ui/react-separator", "@radix-ui/react-label", "lucide-react", "recharts",
       ],
