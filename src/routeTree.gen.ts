@@ -10,33 +10,141 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ContiRouteImport } from './routes/conti'
+import { Route as ImpostazioniRouteImport } from './routes/impostazioni'
+import { Route as InvestimentiRouteImport } from './routes/investimenti'
+import { Route as MovimentiRouteImport } from './routes/movimenti'
+import { Route as PatrimonioRouteImport } from './routes/patrimonio'
+import { Route as ReportRouteImport } from './routes/report'
+import { Route as RicorrentiRouteImport } from './routes/ricorrenti'
+import { Route as ScadenzeRouteImport } from './routes/scadenze'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ContiRoute = ContiRouteImport.update({
+  id: '/conti',
+  path: '/conti',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ImpostazioniRoute = ImpostazioniRouteImport.update({
+  id: '/impostazioni',
+  path: '/impostazioni',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InvestimentiRoute = InvestimentiRouteImport.update({
+  id: '/investimenti',
+  path: '/investimenti',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MovimentiRoute = MovimentiRouteImport.update({
+  id: '/movimenti',
+  path: '/movimenti',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PatrimonioRoute = PatrimonioRouteImport.update({
+  id: '/patrimonio',
+  path: '/patrimonio',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReportRoute = ReportRouteImport.update({
+  id: '/report',
+  path: '/report',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RicorrentiRoute = RicorrentiRouteImport.update({
+  id: '/ricorrenti',
+  path: '/ricorrenti',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ScadenzeRoute = ScadenzeRouteImport.update({
+  id: '/scadenze',
+  path: '/scadenze',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/conti': typeof ContiRoute
+  '/impostazioni': typeof ImpostazioniRoute
+  '/investimenti': typeof InvestimentiRoute
+  '/movimenti': typeof MovimentiRoute
+  '/patrimonio': typeof PatrimonioRoute
+  '/report': typeof ReportRoute
+  '/ricorrenti': typeof RicorrentiRoute
+  '/scadenze': typeof ScadenzeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/conti': typeof ContiRoute
+  '/impostazioni': typeof ImpostazioniRoute
+  '/investimenti': typeof InvestimentiRoute
+  '/movimenti': typeof MovimentiRoute
+  '/patrimonio': typeof PatrimonioRoute
+  '/report': typeof ReportRoute
+  '/ricorrenti': typeof RicorrentiRoute
+  '/scadenze': typeof ScadenzeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/conti': typeof ContiRoute
+  '/impostazioni': typeof ImpostazioniRoute
+  '/investimenti': typeof InvestimentiRoute
+  '/movimenti': typeof MovimentiRoute
+  '/patrimonio': typeof PatrimonioRoute
+  '/report': typeof ReportRoute
+  '/ricorrenti': typeof RicorrentiRoute
+  '/scadenze': typeof ScadenzeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/conti'
+    | '/impostazioni'
+    | '/investimenti'
+    | '/movimenti'
+    | '/patrimonio'
+    | '/report'
+    | '/ricorrenti'
+    | '/scadenze'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/conti'
+    | '/impostazioni'
+    | '/investimenti'
+    | '/movimenti'
+    | '/patrimonio'
+    | '/report'
+    | '/ricorrenti'
+    | '/scadenze'
+  id:
+    | '__root__'
+    | '/'
+    | '/conti'
+    | '/impostazioni'
+    | '/investimenti'
+    | '/movimenti'
+    | '/patrimonio'
+    | '/report'
+    | '/ricorrenti'
+    | '/scadenze'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ContiRoute: typeof ContiRoute
+  ImpostazioniRoute: typeof ImpostazioniRoute
+  InvestimentiRoute: typeof InvestimentiRoute
+  MovimentiRoute: typeof MovimentiRoute
+  PatrimonioRoute: typeof PatrimonioRoute
+  ReportRoute: typeof ReportRoute
+  RicorrentiRoute: typeof RicorrentiRoute
+  ScadenzeRoute: typeof ScadenzeRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +156,75 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/conti': {
+      id: '/conti'
+      path: '/conti'
+      fullPath: '/conti'
+      preLoaderRoute: typeof ContiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/impostazioni': {
+      id: '/impostazioni'
+      path: '/impostazioni'
+      fullPath: '/impostazioni'
+      preLoaderRoute: typeof ImpostazioniRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/investimenti': {
+      id: '/investimenti'
+      path: '/investimenti'
+      fullPath: '/investimenti'
+      preLoaderRoute: typeof InvestimentiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/movimenti': {
+      id: '/movimenti'
+      path: '/movimenti'
+      fullPath: '/movimenti'
+      preLoaderRoute: typeof MovimentiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/patrimonio': {
+      id: '/patrimonio'
+      path: '/patrimonio'
+      fullPath: '/patrimonio'
+      preLoaderRoute: typeof PatrimonioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/report': {
+      id: '/report'
+      path: '/report'
+      fullPath: '/report'
+      preLoaderRoute: typeof ReportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ricorrenti': {
+      id: '/ricorrenti'
+      path: '/ricorrenti'
+      fullPath: '/ricorrenti'
+      preLoaderRoute: typeof RicorrentiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/scadenze': {
+      id: '/scadenze'
+      path: '/scadenze'
+      fullPath: '/scadenze'
+      preLoaderRoute: typeof ScadenzeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ContiRoute: ContiRoute,
+  ImpostazioniRoute: ImpostazioniRoute,
+  InvestimentiRoute: InvestimentiRoute,
+  MovimentiRoute: MovimentiRoute,
+  PatrimonioRoute: PatrimonioRoute,
+  ReportRoute: ReportRoute,
+  RicorrentiRoute: RicorrentiRoute,
+  ScadenzeRoute: ScadenzeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
