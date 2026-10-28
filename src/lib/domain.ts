@@ -138,7 +138,7 @@ export function validateSettlement(balances: Record<string, number>, s: { from: 
   if (s.from === s.to) return "Chi paga e chi riceve devono essere diversi.";
   if (!s.date) return "Indica la data.";
   if (!Number.isFinite(s.amount) || Math.round(s.amount * 100) <= 0) return "L'importo deve essere maggiore di zero.";
-  if (Math.round(s.amount * 100) !== Math.round(s.amount * 1000) / 10) return "Usa al massimo due decimali.";
+  if (Math.abs(s.amount * 100 - Math.round(s.amount * 100)) > 1e-6) return "Usa al massimo due decimali.";
   const debt = outstandingDebt(balances, s.from, s.to);
   if (debt === 0) return "Non ci sono debiti da regolare in questa direzione.";
   if (Math.round(s.amount * 100) > Math.round(debt * 100)) return `L'importo supera il debito residuo (${eur(debt)}).`;
