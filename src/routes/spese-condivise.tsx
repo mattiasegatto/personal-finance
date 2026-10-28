@@ -101,7 +101,7 @@ function SharedPage() {
           <p className="text-sm opacity-80">Saldo attuale</p>
           {creditor && debtor ? (
             <>
-              <p className="num mt-2 font-display text-4xl">{eur(owed)}</p>
+              <p className="num mt-2 font-display text-4xl">{eur(owed ?? 0)}</p>
               <p className="mt-3 flex items-center gap-2 text-sm">
                 <strong>{debtor.name}</strong> <ArrowRight className="h-4 w-4" /> <strong>{creditor.name}</strong>
               </p>
@@ -290,7 +290,7 @@ function SplitDialog({ expense, onClose, onSave }: { expense: SharedExpense | nu
           <DialogDescription>{eur(expense.amount)} pagati da {memberName(expense.paidBy)}. Predefinito: 50 / 50.</DialogDescription>
         </DialogHeader>
         <div className="space-y-6 py-2">
-          <Slider value={[pct]} min={0} max={100} step={5} onValueChange={([v]) => setPct(v)} />
+          <Slider value={[pct]} min={0} max={100} step={5} onValueChange={([v]) => setPct(v ?? 50)} />
           <div className="grid grid-cols-2 gap-4">
             {[["m1", pct, a], ["m2", 100 - pct, b]].map(([id, p, v]) => (
               <div key={id as string} className="rounded-xl border p-4">
