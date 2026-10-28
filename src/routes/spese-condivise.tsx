@@ -133,21 +133,21 @@ function SharedPage() {
       {/* Filtri */}
       <div className="mt-8 flex flex-wrap gap-3">
         <Select value={period} onValueChange={setPeriod}>
-          <SelectTrigger className="w-44 bg-card"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-44 bg-card capitalize"><SelectValue>{period === "all" ? "Tutti i periodi" : monthLabel(period)}</SelectValue></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tutti i periodi</SelectItem>
             {months.map((m) => <SelectItem key={m} value={m} className="capitalize">{monthLabel(m)}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={category} onValueChange={setCategory}>
-          <SelectTrigger className="w-44 bg-card"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-44 bg-card"><SelectValue>{category === "all" ? "Tutte le categorie" : category}</SelectValue></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tutte le categorie</SelectItem>
             {categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={person} onValueChange={setPerson}>
-          <SelectTrigger className="w-44 bg-card"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-44 bg-card"><SelectValue>{person === "all" ? "Tutti i partecipanti" : memberName(person)}</SelectValue></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tutti i partecipanti</SelectItem>
             {members.map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
