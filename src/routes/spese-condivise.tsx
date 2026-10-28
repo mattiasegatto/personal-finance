@@ -321,7 +321,7 @@ export function SettlementDialog({ balances, defaultFrom, defaultTo, onClose, on
     if (error) return;
     const full = Math.round(value * 100) === Math.round(debt * 100);
     onSave({ id: `s-${Date.now()}`, spaceId: "s-casa", date, from, to, amount: Math.round(value * 100) / 100,
-      kind: full ? "pareggio" : "rimborso", note: note.trim() || undefined });
+      kind: full ? "pareggio" : "rimborso", ...(note.trim() ? { note: note.trim() } : {}) });
   };
   const swap = (setter: (v: string) => void, other: (v: string) => void) => (v: string) => { setter(v); other(members.find((m) => m.id !== v)!.id); };
 
