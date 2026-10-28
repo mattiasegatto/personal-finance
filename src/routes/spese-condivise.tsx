@@ -22,6 +22,8 @@ export const Route = createFileRoute("/spese-condivise")({
       { name: "description", content: "Spese comuni, quote, saldo e rimborsi tra partecipanti (dati dimostrativi)." },
       { property: "og:title", content: "Spese condivise — Fondo" },
       { property: "og:description", content: "Spese comuni, quote, saldo e rimborsi tra partecipanti." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
   component: SharedPage,
@@ -259,24 +261,27 @@ function SharedPage() {
         </TabsContent>
       </Tabs>
 
-      <SplitDialog
+      {editing && <SplitDialog
+        key={editing.id}
         expense={editing}
         onClose={() => setEditing(null)}
         onSave={(u) => { setExpenses((xs) => xs.map((x) => (x.id === u.id ? u : x))); setEditing(null); }}
-      />
+      />}
     </div>
   );
 }
 
-function SplitDialog({ expense, onClose, onSave }: { expense: SharedExpense | null; onClose: () => void; onSave: (e: SharedExpense) => void }) {
-  const [pct, setPct] = useState(50);
-  const [key, setKey] = useState<string | null>(null);
-  if (expense && key !== expense.id) {
-    setKey(expense.id);
-    setPct(Math.round(((expense.shares.find((s) => s.memberId === "m1")?.amount ?? 0) / expense.amount) * 100));
-  }
-  if (!expense) return null;
-  const a = Math.round(expense.amount * pct) / 100;
+export function SplitDialog({ expense, onClose, onSave }: { expense: SharedExpense; onClose: () => void; onSave: (e: SharedExpense) => void }) {
+  const originalA = expense.shares.find((s) => s.memberId === "m1")?.amount ?? 0;
+  const [pct, setPct] = useState(expense.amount > 0 ? originalA / expense.amount * 100 : 50);
+  const [changed, setChanged] = useState(false);
+  const updatePct = (value: number) => {
+    if (!Number.isFinite(value)) return;
+    setPct(Math.max(0, Math.min(100, value)));
+    setChanged(true);
+  };
+  const defaultShares = equalShares(expense.amount, ["m1", "m2"]);
+  const a = !changed ? originalA : pct === 50 ? (defaultShares[0]?.amount ?? 0) : Math.round(expense.amount * pct) / 100;
   const b = Math.round((expense.amount - a) * 100) / 100;
 
   return (
@@ -287,14 +292,14 @@ function SplitDialog({ expense, onClose, onSave }: { expense: SharedExpense | nu
           <DialogDescription>{eur(expense.amount)} pagati da {memberName(expense.paidBy)}. Predefinito: 50 / 50.</DialogDescription>
         </DialogHeader>
         <div className="space-y-6 py-2">
-          <Slider value={[pct]} min={0} max={100} step={5} onValueChange={([v]) => setPct(v ?? 50)} />
+          <Slider value={[pct]} min={0} max={100} step={5} onValueChange={([v]) => updatePct(v ?? 50)} />
           <div className="grid grid-cols-2 gap-4">
             {[["m1", pct, a], ["m2", 100 - pct, b]].map(([id, p, v]) => (
               <div key={id as string} className="rounded-xl border p-4">
                 <div className="flex items-center gap-2"><Avatar id={id as string} /><Label>{memberName(id as string)}</Label></div>
                 <Input
-                  type="number" className="num mt-3" value={p as number} min={0} max={100}
-                  onChange={(ev) => { const n = Math.max(0, Math.min(100, Number(ev.target.value))); setPct(id === "m1" ? n : 100 - n); }}
+                  type="number" aria-label={`Quota percentuale ${memberName(id as string)}`} step="any" className="num mt-3" value={p as number} min={0} max={100}
+                  onChange={(ev) => { const n = Math.max(0, Math.min(100, Number(ev.target.value))); updatePct(id === "m1" ? n : 100 - n); }}
                 />
                 <p className="num mt-2 text-sm text-muted-foreground">{eur(v as number)}</p>
               </div>
@@ -302,13 +307,13 @@ function SplitDialog({ expense, onClose, onSave }: { expense: SharedExpense | nu
           </div>
         </div>
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => setPct(50)}>Ripristina 50 / 50</Button>
+          <Button variant="outline" onClick={() => updatePct(50)}>Ripristina 50 / 50</Button>
           <Button
             onClick={() =>
               onSave({
                 ...expense,
-                splitMode: pct === 50 ? "equal" : "percent",
-                shares: pct === 50 ? equalShares(expense.amount, ["m1", "m2"]) : [{ memberId: "m1", amount: a }, { memberId: "m2", amount: b }],
+                splitMode: !changed ? expense.splitMode : pct === 50 ? "equal" : "percent",
+                shares: !changed ? expense.shares : pct === 50 ? defaultShares : [{ memberId: "m1", amount: a }, { memberId: "m2", amount: b }],
               })
             }
           >
