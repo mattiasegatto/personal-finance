@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { ArrowRight, Link2, Repeat, ShieldCheck, Handshake } from "lucide-react";
+import { ArrowRight, Link2, Repeat, ShieldCheck, Handshake, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/page";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -12,8 +12,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
-import { dateFull, dateShort as dateLabel, equalShares, eur, monthLabel, monthShort, netBalances, type SharedExpense } from "@/lib/domain";
-import { categories, memberName, members, settlements, sharedExpenses } from "@/lib/mock-data";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { dateFull, dateShort as dateLabel, equalShares, eur, monthLabel, monthShort, netBalances, outstandingDebt, validateSettlement, type Settlement, type SharedExpense } from "@/lib/domain";
+import { categories, memberName, members, settlements as demoSettlements, sharedExpenses } from "@/lib/mock-data";
 
 export const Route = createFileRoute("/spese-condivise")({
   head: () => ({
@@ -42,10 +43,13 @@ function Avatar({ id }: { id: string }) {
 
 function SharedPage() {
   const [expenses, setExpenses] = useState<SharedExpense[]>(sharedExpenses);
+  const [settlements, setSettlements] = useState<Settlement[]>(demoSettlements);
   const [period, setPeriod] = useState("all");
   const [category, setCategory] = useState("all");
   const [person, setPerson] = useState("all");
   const [editing, setEditing] = useState<SharedExpense | null>(null);
+  const [settling, setSettling] = useState(false);
+  const [removing, setRemoving] = useState<string | null>(null);
 
   const months = useMemo(() => [...new Set(expenses.map((e) => e.date.slice(0, 7)))].sort().reverse(), [expenses]);
 
@@ -57,12 +61,13 @@ function SharedPage() {
   );
   const filteredSettlements = settlements.filter(
     (s) => (period === "all" || s.date.startsWith(period)) && (person === "all" || s.from === person || s.to === person),
-  );
+  ).sort((x, y) => y.date.localeCompare(x.date));
 
   const balances = netBalances(expenses, settlements);
   const creditor = members.find((m) => (balances[m.id] ?? 0) > 0);
   const debtor = members.find((m) => (balances[m.id] ?? 0) < 0);
   const owed = creditor ? balances[creditor.id] : 0;
+  const removeTarget = settlements.find((s) => s.id === removing);
 
   const monthly = [...months].reverse().map((ym) => {
     const list = expenses.filter((e) => e.date.startsWith(ym));
@@ -81,7 +86,7 @@ function SharedPage() {
     ].sort((a, b) => a.date.localeCompare(b.date));
     let run = 0;
     return events.map((ev) => ({ ...ev, balance: (run = Math.round((run + ev.delta) * 100) / 100) })).reverse();
-  }, [expenses]);
+  }, [expenses, settlements]);
 
   const total = filtered.reduce((a, e) => a + e.amount, 0);
 
@@ -106,9 +111,12 @@ function SharedPage() {
               </p>
             </>
           ) : (
-            <p className="mt-2 font-display text-3xl">In pari</p>
+            <>
+              <p className="mt-2 font-display text-3xl">In pari</p>
+              <p className="mt-3 text-sm opacity-80">Non ci sono debiti da regolare.</p>
+            </>
           )}
-          <Button variant="secondary" size="sm" className="mt-5"><Handshake className="h-4 w-4" />Registra pareggio</Button>
+          <Button variant="secondary" size="sm" className="mt-5" disabled={!creditor || !debtor} onClick={() => setSettling(true)}><Handshake className="h-4 w-4" />Registra pareggio</Button>
         </div>
         {members.map((m) => {
           const paid = expenses.filter((e) => e.paidBy === m.id).reduce((a, e) => a + e.amount, 0);
@@ -253,10 +261,12 @@ function SharedPage() {
             <div key={s.id} className="flex flex-wrap items-center gap-4 rounded-xl border bg-card px-5 py-4">
               <Badge className={s.kind === "pareggio" ? "bg-primary" : "bg-transfer"}>{s.kind === "pareggio" ? "Pareggio" : "Rimborso"}</Badge>
               <div className="flex items-center gap-2 text-sm"><Avatar id={s.from} /><ArrowRight className="h-4 w-4 text-muted-foreground" /><Avatar id={s.to} /></div>
-              <div className="flex-1 text-sm"><p className="font-medium">{s.note}</p><p className="text-xs text-muted-foreground">{dateFull(s.date)}</p></div>
+              <div className="flex-1 text-sm"><p className="font-medium">{memberName(s.from)} ha pagato {memberName(s.to)}{s.note ? ` · ${s.note}` : ""}</p><p className="text-xs text-muted-foreground">{dateFull(s.date)}</p></div>
               <p className="num font-display text-xl">{eur(s.amount)}</p>
+              <Button variant="ghost" size="icon" aria-label={`Elimina rimborso del ${dateFull(s.date)}`} onClick={() => setRemoving(s.id)}><Trash2 className="h-4 w-4" /></Button>
             </div>
           ))}
+          {filteredSettlements.length === 0 && <p className="rounded-xl border bg-card px-5 py-4 text-sm text-muted-foreground">Nessun rimborso nel periodo selezionato.</p>}
           <p className="text-xs text-muted-foreground">I rimborsi compensano il saldo: non sono registrati come reddito né come nuova spesa condivisa.</p>
         </TabsContent>
       </Tabs>
@@ -267,7 +277,87 @@ function SharedPage() {
         onClose={() => setEditing(null)}
         onSave={(u) => { setExpenses((xs) => xs.map((x) => (x.id === u.id ? u : x))); setEditing(null); }}
       />}
+
+      {settling && <SettlementDialog
+        balances={balances}
+        defaultFrom={debtor?.id ?? "m2"}
+        defaultTo={creditor?.id ?? "m1"}
+        onClose={() => setSettling(false)}
+        onSave={(s) => { setSettlements((xs) => [...xs, s]); setSettling(false); }}
+      />}
+
+      <AlertDialog open={!!removeTarget} onOpenChange={(o) => !o && setRemoving(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display">Eliminare questo rimborso?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {removeTarget && `${memberName(removeTarget.from)} → ${memberName(removeTarget.to)}, ${eur(removeTarget.amount)} del ${dateFull(removeTarget.date)}. Il saldo tornerà al valore precedente.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setSettlements((xs) => xs.filter((x) => x.id !== removing)); setRemoving(null); }}>Elimina rimborso</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
+  );
+}
+
+export function SettlementDialog({ balances, defaultFrom, defaultTo, onClose, onSave }: {
+  balances: Record<string, number>; defaultFrom: string; defaultTo: string; onClose: () => void; onSave: (s: Settlement) => void;
+}) {
+  const [from, setFrom] = useState(defaultFrom);
+  const [to, setTo] = useState(defaultTo);
+  const debt = outstandingDebt(balances, from, to);
+  const [amount, setAmount] = useState(debt ? debt.toFixed(2) : "");
+  const [date, setDate] = useState("2026-10-28");
+  const [note, setNote] = useState("");
+  const [touched, setTouched] = useState(false);
+  const value = Number(amount.replace(",", "."));
+  const error = validateSettlement(balances, { from, to, amount: amount.trim() === "" ? NaN : value, date });
+  const submit = () => {
+    setTouched(true);
+    if (error) return;
+    const full = Math.round(value * 100) === Math.round(debt * 100);
+    onSave({ id: `s-${Date.now()}`, spaceId: "s-casa", date, from, to, amount: Math.round(value * 100) / 100,
+      kind: full ? "pareggio" : "rimborso", ...(note.trim() ? { note: note.trim() } : {}) });
+  };
+  const swap = (setter: (v: string) => void, other: (v: string) => void) => (v: string) => { setter(v); other(members.find((m) => m.id !== v)!.id); };
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="font-display">Registra rimborso</DialogTitle>
+          <DialogDescription>Debito residuo: {debt ? `${memberName(from)} deve ${eur(debt)} a ${memberName(to)}` : "nessun debito in questa direzione"}. Non viene registrato come entrata né come spesa.</DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-2 sm:grid-cols-2">
+          <div className="space-y-1.5"><Label>Chi paga</Label>
+            <Select value={from} onValueChange={swap(setFrom, setTo)}><SelectTrigger aria-label="Chi paga"><SelectValue /></SelectTrigger>
+              <SelectContent>{members.map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}</SelectContent></Select>
+          </div>
+          <div className="space-y-1.5"><Label>Chi riceve</Label>
+            <Select value={to} onValueChange={swap(setTo, setFrom)}><SelectTrigger aria-label="Chi riceve"><SelectValue /></SelectTrigger>
+              <SelectContent>{members.map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}</SelectContent></Select>
+          </div>
+          <div className="space-y-1.5"><Label htmlFor="st-amount">Importo (€)</Label>
+            <Input id="st-amount" inputMode="decimal" className="num" value={amount} onChange={(e) => setAmount(e.target.value)} />
+          </div>
+          <div className="space-y-1.5"><Label htmlFor="st-date">Data</Label>
+            <Input id="st-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          </div>
+          <div className="space-y-1.5 sm:col-span-2"><Label htmlFor="st-note">Descrizione (facoltativa)</Label>
+            <Input id="st-note" value={note} onChange={(e) => setNote(e.target.value)} />
+          </div>
+          {touched && error && <p role="alert" className="text-sm text-negative sm:col-span-2">{error}</p>}
+        </div>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={onClose}>Annulla</Button>
+          <Button onClick={submit}>Registra rimborso</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

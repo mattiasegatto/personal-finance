@@ -126,3 +126,21 @@ export const monthLabel = (ym: string) => { const [y, m] = ym.split("-"); const 
 export const monthShort = (ym: string) => MESI[Number(ym.slice(5, 7)) - 1]!.slice(0, 3);
 export const dateShort = (d: string) => `${d.slice(8, 10)} ${monthShort(d)}`;
 export const dateFull = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`;
+
+/** Debito residuo che `from` ha verso `to` (0 se non deve nulla). Solo due partecipanti. */
+export function outstandingDebt(balances: Record<string, number>, from: string, to: string) {
+  const f = balances[from] ?? 0, t = balances[to] ?? 0;
+  return f < 0 && t > 0 ? Math.min(-f, t) : 0;
+}
+
+/** Valida un rimborso: importo positivo e non superiore al debito residuo (nessun eccedente). */
+export function validateSettlement(balances: Record<string, number>, s: { from: string; to: string; amount: number; date: string }): string | null {
+  if (s.from === s.to) return "Chi paga e chi riceve devono essere diversi.";
+  if (!s.date) return "Indica la data.";
+  if (!Number.isFinite(s.amount) || Math.round(s.amount * 100) <= 0) return "L'importo deve essere maggiore di zero.";
+  if (Math.abs(s.amount * 100 - Math.round(s.amount * 100)) > 1e-6) return "Usa al massimo due decimali.";
+  const debt = outstandingDebt(balances, s.from, s.to);
+  if (debt === 0) return "Non ci sono debiti da regolare in questa direzione.";
+  if (Math.round(s.amount * 100) > Math.round(debt * 100)) return `L'importo supera il debito residuo (${eur(debt)}).`;
+  return null;
+}
