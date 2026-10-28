@@ -42,10 +42,13 @@ function Avatar({ id }: { id: string }) {
 
 function SharedPage() {
   const [expenses, setExpenses] = useState<SharedExpense[]>(sharedExpenses);
+  const [settlements, setSettlements] = useState<Settlement[]>(demoSettlements);
   const [period, setPeriod] = useState("all");
   const [category, setCategory] = useState("all");
   const [person, setPerson] = useState("all");
   const [editing, setEditing] = useState<SharedExpense | null>(null);
+  const [settling, setSettling] = useState(false);
+  const [removing, setRemoving] = useState<string | null>(null);
 
   const months = useMemo(() => [...new Set(expenses.map((e) => e.date.slice(0, 7)))].sort().reverse(), [expenses]);
 
@@ -57,12 +60,13 @@ function SharedPage() {
   );
   const filteredSettlements = settlements.filter(
     (s) => (period === "all" || s.date.startsWith(period)) && (person === "all" || s.from === person || s.to === person),
-  );
+  ).sort((x, y) => y.date.localeCompare(x.date));
 
   const balances = netBalances(expenses, settlements);
   const creditor = members.find((m) => (balances[m.id] ?? 0) > 0);
   const debtor = members.find((m) => (balances[m.id] ?? 0) < 0);
   const owed = creditor ? balances[creditor.id] : 0;
+  const removeTarget = settlements.find((s) => s.id === removing);
 
   const monthly = [...months].reverse().map((ym) => {
     const list = expenses.filter((e) => e.date.startsWith(ym));
