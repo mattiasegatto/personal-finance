@@ -15,3 +15,4 @@
 - Settlements are their own entity, never income or shared expenses — why: reimbursements only move debt between members.
 - Splits are a per-member `shares` list — why: future N participants and variable quotas.
 - Prototype phase: demo data only in `src/lib/mock-data.ts`, no backend/auth — why: user requested visual prototype first.
+- SplitDialog is mounted only while editing and preserves original shares until an explicit change; its named export supports calculation regression tests — why: cancel must discard drafts and unchanged saves must not round monetary shares.
