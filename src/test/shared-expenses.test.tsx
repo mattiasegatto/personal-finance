@@ -1,10 +1,16 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { equalShares, netBalances, type SharedExpense } from "@/lib/domain";
 import { sharedExpenses, settlements, transactions } from "@/lib/mock-data";
 import { SplitDialog } from "@/routes/spese-condivise";
 
-afterEach(cleanup);
+// jsdom has no layout observer; the slider requires the browser API to mount.
+beforeEach(() => vi.stubGlobal("ResizeObserver", class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}));
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 const expense = (amount: number, paidBy = "m1"): SharedExpense => ({
   id: "test", spaceId: "s-casa", date: "2026-10-28", description: "Demo",
   category: "Casa", amount, paidBy, splitMode: "equal", shares: equalShares(amount, ["m1", "m2"]),
