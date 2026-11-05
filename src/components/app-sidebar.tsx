@@ -1,8 +1,10 @@
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   LayoutDashboard, ArrowLeftRight, CreditCard, Landmark, TrendingUp, Repeat,
-  CalendarClock, BarChart3, Settings, Users, Lock,
+  CalendarClock, BarChart3, Settings, Users, Lock, LogOut,
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar,
@@ -23,6 +25,14 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const path = useRouterState({ select: (r) => r.location.pathname });
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const signOut = async () => {
+    await queryClient.cancelQueries();
+    queryClient.clear();
+    await supabase.auth.signOut();
+    navigate({ to: "/auth", replace: true });
+  };
 
   const item = (i: { title: string; url: string; icon: typeof Users }) => (
     <SidebarMenuItem key={i.url}>
@@ -55,7 +65,15 @@ export function AppSidebar() {
           <SidebarGroupContent><SidebarMenu>{item({ title: "Spese condivise", url: "/spese-condivise", icon: Users })}</SidebarMenu></SidebarGroupContent>
         </SidebarGroup>
         <SidebarGroup className="mt-auto">
-          <SidebarGroupContent><SidebarMenu>{item({ title: "Impostazioni", url: "/impostazioni", icon: Settings })}</SidebarMenu></SidebarGroupContent>
+          <SidebarGroupContent><SidebarMenu>
+            {item({ title: "Impostazioni e spazi", url: "/impostazioni", icon: Settings })}
+            <SidebarMenuItem>
+              <SidebarMenuButton tooltip="Esci" onClick={signOut}>
+                <LogOut className="h-4 w-4" />
+                {!collapsed && <span>Esci</span>}
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu></SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
     </Sidebar>
