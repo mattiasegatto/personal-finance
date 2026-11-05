@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Placeholder } from "@/components/page";
 
-export const Route = createFileRoute("/scadenze")({
+export const Route = createFileRoute("/_authenticated/scadenze")({
   head: () => ({
     meta: [
       { title: "Scadenze — Fondo" },

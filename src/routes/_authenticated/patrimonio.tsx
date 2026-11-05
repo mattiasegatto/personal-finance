@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Placeholder } from "@/components/page";
 
-export const Route = createFileRoute("/patrimonio")({
+export const Route = createFileRoute("/_authenticated/patrimonio")({
   head: () => ({
     meta: [
       { title: "Patrimonio — Fondo" },

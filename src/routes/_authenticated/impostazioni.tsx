@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Placeholder } from "@/components/page";
 
-export const Route = createFileRoute("/impostazioni")({
+export const Route = createFileRoute("/_authenticated/impostazioni")({
   head: () => ({
     meta: [
       { title: "Impostazioni — Fondo" },

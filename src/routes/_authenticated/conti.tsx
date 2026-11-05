@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Placeholder } from "@/components/page";
 
-export const Route = createFileRoute("/conti")({
+export const Route = createFileRoute("/_authenticated/conti")({
   head: () => ({
     meta: [
       { title: "Conti e carte — Fondo" },
