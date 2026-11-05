@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { netBalances, validateSettlement, type Settlement } from "@/lib/domain";
 import { sharedExpenses, settlements } from "@/lib/mock-data";
-import { SettlementDialog } from "@/routes/spese-condivise";
+import { SettlementDialog } from "@/routes/_authenticated/spese-condivise";
 
 afterEach(cleanup);
 const pay = (amount: number, id = `r${amount}`): Settlement => ({ id, spaceId: "s-casa", date: "2026-10-28", from: "m2", to: "m1", amount, kind: "rimborso" });

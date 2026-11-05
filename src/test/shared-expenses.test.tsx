@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { equalShares, netBalances, type SharedExpense } from "@/lib/domain";
 import { sharedExpenses, settlements, transactions } from "@/lib/mock-data";
-import { SplitDialog } from "@/routes/spese-condivise";
+import { SplitDialog } from "@/routes/_authenticated/spese-condivise";
 
 // jsdom has no layout observer; the slider requires the browser API to mount.
 beforeEach(() => vi.stubGlobal("ResizeObserver", class {
