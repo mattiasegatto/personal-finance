@@ -14,16 +14,161 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      space_invitations: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          invited_by: string
+          role: Database["public"]["Enums"]["space_role"]
+          space_id: string
+          status: Database["public"]["Enums"]["invitation_status"]
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          invited_by: string
+          role?: Database["public"]["Enums"]["space_role"]
+          space_id: string
+          status?: Database["public"]["Enums"]["invitation_status"]
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          invited_by?: string
+          role?: Database["public"]["Enums"]["space_role"]
+          space_id?: string
+          status?: Database["public"]["Enums"]["invitation_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "space_invitations_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "spaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      space_memberships: {
+        Row: {
+          created_at: string
+          role: Database["public"]["Enums"]["space_role"]
+          space_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          role: Database["public"]["Enums"]["space_role"]
+          space_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          role?: Database["public"]["Enums"]["space_role"]
+          space_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "space_memberships_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "spaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      spaces: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          created_by: string
+          id: string
+          kind: Database["public"]["Enums"]["space_kind"]
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          created_by: string
+          id?: string
+          kind: Database["public"]["Enums"]["space_kind"]
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["space_kind"]
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      accept_invitation: { Args: { _invitation: string }; Returns: string }
+      create_shared_space: { Args: { _name: string }; Returns: string }
+      current_email: { Args: never; Returns: string }
+      has_space_role: {
+        Args: {
+          _roles: Database["public"]["Enums"]["space_role"][]
+          _space: string
+          _user: string
+        }
+        Returns: boolean
+      }
+      invite_to_space: {
+        Args: {
+          _email: string
+          _role?: Database["public"]["Enums"]["space_role"]
+          _space: string
+        }
+        Returns: string
+      }
+      is_space_member: {
+        Args: { _space: string; _user: string }
+        Returns: boolean
+      }
+      shares_shared_space: {
+        Args: { _a: string; _b: string }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      invitation_status: "pending" | "accepted" | "revoked"
+      space_kind: "personal" | "shared"
+      space_role: "owner" | "member" | "viewer"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +295,10 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      invitation_status: ["pending", "accepted", "revoked"],
+      space_kind: ["personal", "shared"],
+      space_role: ["owner", "member", "viewer"],
+    },
   },
 } as const
