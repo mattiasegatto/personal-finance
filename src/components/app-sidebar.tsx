@@ -2,7 +2,7 @@ import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   LayoutDashboard, ArrowLeftRight, CreditCard, Landmark, TrendingUp, Repeat,
-  CalendarClock, BarChart3, Settings, Users, Lock, LogOut,
+  CalendarClock, BarChart3, Settings, Users, Lock, LogOut, Tags,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -14,6 +14,7 @@ const personal = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Movimenti", url: "/movimenti", icon: ArrowLeftRight },
   { title: "Conti e carte", url: "/conti", icon: CreditCard },
+  { title: "Categorie", url: "/categorie", icon: Tags },
   { title: "Patrimonio", url: "/patrimonio", icon: Landmark },
   { title: "Investimenti", url: "/investimenti", icon: TrendingUp },
   { title: "Redditi e ricorrenti", url: "/ricorrenti", icon: Repeat },
