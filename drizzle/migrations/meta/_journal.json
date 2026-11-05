@@ -29,6 +29,13 @@
       "when": 1793913491783,
       "tag": "0003_accounts_delete_empty",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793913558198,
+      "tag": "0004_fix_transaction_guard_cross_space",
+      "breakpoints": true
     }
   ]
 }
