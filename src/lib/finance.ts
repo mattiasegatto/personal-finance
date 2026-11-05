@@ -14,7 +14,8 @@ export const kindLabel: Record<CategoryKind, string> = { income: "Entrate", expe
 
 /** Converte "12,34" o "12.34" in centesimi interi; null se non valido. */
 export function parseCents(input: string, allowNegative = false): number | null {
-  const s = input.trim().replace(/\s/g, "").replace(/\./g, (m, i, str) => (str.includes(",") ? "" : m)).replace(",", ".");
+  let s = input.trim().replace(/\s|€/g, "");
+  if (s.includes(",")) s = s.replace(/\./g, "").replace(",", ".");
   if (!/^-?\d+(\.\d{1,2})?$/.test(s)) return null;
   const c = Math.round(Number(s) * 100);
   if (!allowNegative && c < 0) return null;
