@@ -109,15 +109,15 @@ function AccountDialog({ account, spaceId, onClose, onSaved }: { account: Acc | 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     const cents = parseCents(initial, true);
-    if (!name.trim()) return toast.error("Indica il nome del conto.");
-    if (cents === null) return toast.error("Saldo iniziale non valido (massimo due decimali).");
+    if (!name.trim()) return void toast.error("Indica il nome del conto.");
+    if (cents === null) return void toast.error("Saldo iniziale non valido (massimo due decimali).");
     const row = { name: name.trim(), type, currency: currency.toUpperCase(), initial_balance_cents: cents, opened_on: opened || null };
     setBusy(true);
     const { error } = account
       ? await supabase.from("accounts").update(row).eq("id", account.id)
       : await supabase.from("accounts").insert({ ...row, space_id: spaceId });
     setBusy(false);
-    if (error) return toast.error(errMsg(error));
+    if (error) return void toast.error(errMsg(error));
     toast.success(account ? "Conto aggiornato" : "Conto creato");
     onSaved(); onClose();
   };

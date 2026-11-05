@@ -135,17 +135,17 @@ function TxDialog({ tx, data, onClose, onSaved }: { tx: Tx | null; data: Fin; on
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     const cents = parseCents(amount);
-    if (!cents) return toast.error("L'importo deve essere positivo, con al massimo due decimali.");
-    if (!account) return toast.error("Scegli il conto.");
-    if (!category || !cats.some((c) => c.id === category)) return toast.error("Scegli una categoria coerente con la direzione.");
-    if (!date) return toast.error("Indica la data.");
+    if (!cents) return void toast.error("L'importo deve essere positivo, con al massimo due decimali.");
+    if (!account) return void toast.error("Scegli il conto.");
+    if (!category || !cats.some((c) => c.id === category)) return void toast.error("Scegli una categoria coerente con la direzione.");
+    if (!date) return void toast.error("Indica la data.");
     const row = { direction, account_id: account, category_id: category, occurred_on: date, amount_cents: cents, description: desc.trim() || null };
     setBusy(true);
     const { error } = tx
       ? await supabase.from("transactions").update(row).eq("id", tx.id)
       : await supabase.from("transactions").insert({ ...row, space_id: data.spaceId });
     setBusy(false);
-    if (error) return toast.error(errMsg(error));
+    if (error) return void toast.error(errMsg(error));
     toast.success(tx ? "Movimento aggiornato" : "Movimento registrato");
     onSaved(); onClose();
   };

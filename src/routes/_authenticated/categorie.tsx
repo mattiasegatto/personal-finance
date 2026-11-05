@@ -40,7 +40,7 @@ function Categories() {
   };
   const add = async (e: FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return toast.error("Indica il nome.");
+    if (!name.trim()) return void toast.error("Indica il nome.");
     await act(supabase.from("categories").insert(parent === NONE
       ? { space_id: data.spaceId, name: name.trim(), kind }
       : { space_id: data.spaceId, name: name.trim(), parent_id: parent }), "Categoria creata");
