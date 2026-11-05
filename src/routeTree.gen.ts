@@ -13,6 +13,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
+import { Route as AuthenticatedCategorieRouteImport } from './routes/_authenticated/categorie'
 import { Route as AuthenticatedContiRouteImport } from './routes/_authenticated/conti'
 import { Route as AuthenticatedImpostazioniRouteImport } from './routes/_authenticated/impostazioni'
 import { Route as AuthenticatedInvestimentiRouteImport } from './routes/_authenticated/investimenti'
@@ -40,6 +41,11 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
 const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedCategorieRoute = AuthenticatedCategorieRouteImport.update({
+  id: '/categorie',
+  path: '/categorie',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedContiRoute = AuthenticatedContiRouteImport.update({
@@ -95,6 +101,7 @@ export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/categorie': typeof AuthenticatedCategorieRoute
   '/conti': typeof AuthenticatedContiRoute
   '/impostazioni': typeof AuthenticatedImpostazioniRoute
   '/investimenti': typeof AuthenticatedInvestimentiRoute
@@ -108,6 +115,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/categorie': typeof AuthenticatedCategorieRoute
   '/conti': typeof AuthenticatedContiRoute
   '/impostazioni': typeof AuthenticatedImpostazioniRoute
   '/investimenti': typeof AuthenticatedInvestimentiRoute
@@ -124,6 +132,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/_authenticated/categorie': typeof AuthenticatedCategorieRoute
   '/_authenticated/conti': typeof AuthenticatedContiRoute
   '/_authenticated/impostazioni': typeof AuthenticatedImpostazioniRoute
   '/_authenticated/investimenti': typeof AuthenticatedInvestimentiRoute
@@ -141,6 +150,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/reset-password'
+    | '/categorie'
     | '/conti'
     | '/impostazioni'
     | '/investimenti'
@@ -154,6 +164,7 @@ export interface FileRouteTypes {
   to:
     | '/auth'
     | '/reset-password'
+    | '/categorie'
     | '/conti'
     | '/impostazioni'
     | '/investimenti'
@@ -169,6 +180,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/reset-password'
+    | '/_authenticated/categorie'
     | '/_authenticated/conti'
     | '/_authenticated/impostazioni'
     | '/_authenticated/investimenti'
@@ -215,6 +227,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/categorie': {
+      id: '/_authenticated/categorie'
+      path: '/categorie'
+      fullPath: '/categorie'
+      preLoaderRoute: typeof AuthenticatedCategorieRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/conti': {
@@ -284,6 +303,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedCategorieRoute: typeof AuthenticatedCategorieRoute
   AuthenticatedContiRoute: typeof AuthenticatedContiRoute
   AuthenticatedImpostazioniRoute: typeof AuthenticatedImpostazioniRoute
   AuthenticatedInvestimentiRoute: typeof AuthenticatedInvestimentiRoute
@@ -297,6 +317,7 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedCategorieRoute: AuthenticatedCategorieRoute,
   AuthenticatedContiRoute: AuthenticatedContiRoute,
   AuthenticatedImpostazioniRoute: AuthenticatedImpostazioniRoute,
   AuthenticatedInvestimentiRoute: AuthenticatedInvestimentiRoute,
