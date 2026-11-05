@@ -9,109 +9,138 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as ContiRouteImport } from './routes/conti'
-import { Route as ImpostazioniRouteImport } from './routes/impostazioni'
-import { Route as InvestimentiRouteImport } from './routes/investimenti'
-import { Route as MovimentiRouteImport } from './routes/movimenti'
-import { Route as PatrimonioRouteImport } from './routes/patrimonio'
-import { Route as ReportRouteImport } from './routes/report'
-import { Route as RicorrentiRouteImport } from './routes/ricorrenti'
-import { Route as ScadenzeRouteImport } from './routes/scadenze'
-import { Route as SpeseCondiviseRouteImport } from './routes/spese-condivise'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
+import { Route as AuthenticatedContiRouteImport } from './routes/_authenticated/conti'
+import { Route as AuthenticatedImpostazioniRouteImport } from './routes/_authenticated/impostazioni'
+import { Route as AuthenticatedInvestimentiRouteImport } from './routes/_authenticated/investimenti'
+import { Route as AuthenticatedMovimentiRouteImport } from './routes/_authenticated/movimenti'
+import { Route as AuthenticatedPatrimonioRouteImport } from './routes/_authenticated/patrimonio'
+import { Route as AuthenticatedReportRouteImport } from './routes/_authenticated/report'
+import { Route as AuthenticatedRicorrentiRouteImport } from './routes/_authenticated/ricorrenti'
+import { Route as AuthenticatedScadenzeRouteImport } from './routes/_authenticated/scadenze'
+import { Route as AuthenticatedSpeseCondiviseRouteImport } from './routes/_authenticated/spese-condivise'
 
-const IndexRoute = IndexRouteImport.update({
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const ContiRoute = ContiRouteImport.update({
+const AuthenticatedContiRoute = AuthenticatedContiRouteImport.update({
   id: '/conti',
   path: '/conti',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const ImpostazioniRoute = ImpostazioniRouteImport.update({
-  id: '/impostazioni',
-  path: '/impostazioni',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const InvestimentiRoute = InvestimentiRouteImport.update({
-  id: '/investimenti',
-  path: '/investimenti',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MovimentiRoute = MovimentiRouteImport.update({
+const AuthenticatedImpostazioniRoute =
+  AuthenticatedImpostazioniRouteImport.update({
+    id: '/impostazioni',
+    path: '/impostazioni',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedInvestimentiRoute =
+  AuthenticatedInvestimentiRouteImport.update({
+    id: '/investimenti',
+    path: '/investimenti',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedMovimentiRoute = AuthenticatedMovimentiRouteImport.update({
   id: '/movimenti',
   path: '/movimenti',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const PatrimonioRoute = PatrimonioRouteImport.update({
+const AuthenticatedPatrimonioRoute = AuthenticatedPatrimonioRouteImport.update({
   id: '/patrimonio',
   path: '/patrimonio',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const ReportRoute = ReportRouteImport.update({
+const AuthenticatedReportRoute = AuthenticatedReportRouteImport.update({
   id: '/report',
   path: '/report',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const RicorrentiRoute = RicorrentiRouteImport.update({
+const AuthenticatedRicorrentiRoute = AuthenticatedRicorrentiRouteImport.update({
   id: '/ricorrenti',
   path: '/ricorrenti',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const ScadenzeRoute = ScadenzeRouteImport.update({
+const AuthenticatedScadenzeRoute = AuthenticatedScadenzeRouteImport.update({
   id: '/scadenze',
   path: '/scadenze',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const SpeseCondiviseRoute = SpeseCondiviseRouteImport.update({
-  id: '/spese-condivise',
-  path: '/spese-condivise',
-  getParentRoute: () => rootRouteImport,
-} as any)
+const AuthenticatedSpeseCondiviseRoute =
+  AuthenticatedSpeseCondiviseRouteImport.update({
+    id: '/spese-condivise',
+    path: '/spese-condivise',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/conti': typeof ContiRoute
-  '/impostazioni': typeof ImpostazioniRoute
-  '/investimenti': typeof InvestimentiRoute
-  '/movimenti': typeof MovimentiRoute
-  '/patrimonio': typeof PatrimonioRoute
-  '/report': typeof ReportRoute
-  '/ricorrenti': typeof RicorrentiRoute
-  '/scadenze': typeof ScadenzeRoute
-  '/spese-condivise': typeof SpeseCondiviseRoute
+  '/': typeof AuthenticatedIndexRoute
+  '/auth': typeof AuthRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/conti': typeof AuthenticatedContiRoute
+  '/impostazioni': typeof AuthenticatedImpostazioniRoute
+  '/investimenti': typeof AuthenticatedInvestimentiRoute
+  '/movimenti': typeof AuthenticatedMovimentiRoute
+  '/patrimonio': typeof AuthenticatedPatrimonioRoute
+  '/report': typeof AuthenticatedReportRoute
+  '/ricorrenti': typeof AuthenticatedRicorrentiRoute
+  '/scadenze': typeof AuthenticatedScadenzeRoute
+  '/spese-condivise': typeof AuthenticatedSpeseCondiviseRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/conti': typeof ContiRoute
-  '/impostazioni': typeof ImpostazioniRoute
-  '/investimenti': typeof InvestimentiRoute
-  '/movimenti': typeof MovimentiRoute
-  '/patrimonio': typeof PatrimonioRoute
-  '/report': typeof ReportRoute
-  '/ricorrenti': typeof RicorrentiRoute
-  '/scadenze': typeof ScadenzeRoute
-  '/spese-condivise': typeof SpeseCondiviseRoute
+  '/auth': typeof AuthRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/conti': typeof AuthenticatedContiRoute
+  '/impostazioni': typeof AuthenticatedImpostazioniRoute
+  '/investimenti': typeof AuthenticatedInvestimentiRoute
+  '/movimenti': typeof AuthenticatedMovimentiRoute
+  '/patrimonio': typeof AuthenticatedPatrimonioRoute
+  '/report': typeof AuthenticatedReportRoute
+  '/ricorrenti': typeof AuthenticatedRicorrentiRoute
+  '/scadenze': typeof AuthenticatedScadenzeRoute
+  '/spese-condivise': typeof AuthenticatedSpeseCondiviseRoute
+  '/': typeof AuthenticatedIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/conti': typeof ContiRoute
-  '/impostazioni': typeof ImpostazioniRoute
-  '/investimenti': typeof InvestimentiRoute
-  '/movimenti': typeof MovimentiRoute
-  '/patrimonio': typeof PatrimonioRoute
-  '/report': typeof ReportRoute
-  '/ricorrenti': typeof RicorrentiRoute
-  '/scadenze': typeof ScadenzeRoute
-  '/spese-condivise': typeof SpeseCondiviseRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/auth': typeof AuthRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/_authenticated/conti': typeof AuthenticatedContiRoute
+  '/_authenticated/impostazioni': typeof AuthenticatedImpostazioniRoute
+  '/_authenticated/investimenti': typeof AuthenticatedInvestimentiRoute
+  '/_authenticated/movimenti': typeof AuthenticatedMovimentiRoute
+  '/_authenticated/patrimonio': typeof AuthenticatedPatrimonioRoute
+  '/_authenticated/report': typeof AuthenticatedReportRoute
+  '/_authenticated/ricorrenti': typeof AuthenticatedRicorrentiRoute
+  '/_authenticated/scadenze': typeof AuthenticatedScadenzeRoute
+  '/_authenticated/spese-condivise': typeof AuthenticatedSpeseCondiviseRoute
+  '/_authenticated/': typeof AuthenticatedIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/auth'
+    | '/reset-password'
     | '/conti'
     | '/impostazioni'
     | '/investimenti'
@@ -123,7 +152,8 @@ export interface FileRouteTypes {
     | '/spese-condivise'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/'
+    | '/auth'
+    | '/reset-password'
     | '/conti'
     | '/impostazioni'
     | '/investimenti'
@@ -133,119 +163,159 @@ export interface FileRouteTypes {
     | '/ricorrenti'
     | '/scadenze'
     | '/spese-condivise'
+    | '/'
   id:
     | '__root__'
-    | '/'
-    | '/conti'
-    | '/impostazioni'
-    | '/investimenti'
-    | '/movimenti'
-    | '/patrimonio'
-    | '/report'
-    | '/ricorrenti'
-    | '/scadenze'
-    | '/spese-condivise'
+    | '/_authenticated'
+    | '/auth'
+    | '/reset-password'
+    | '/_authenticated/conti'
+    | '/_authenticated/impostazioni'
+    | '/_authenticated/investimenti'
+    | '/_authenticated/movimenti'
+    | '/_authenticated/patrimonio'
+    | '/_authenticated/report'
+    | '/_authenticated/ricorrenti'
+    | '/_authenticated/scadenze'
+    | '/_authenticated/spese-condivise'
+    | '/_authenticated/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  ContiRoute: typeof ContiRoute
-  ImpostazioniRoute: typeof ImpostazioniRoute
-  InvestimentiRoute: typeof InvestimentiRoute
-  MovimentiRoute: typeof MovimentiRoute
-  PatrimonioRoute: typeof PatrimonioRoute
-  ReportRoute: typeof ReportRoute
-  RicorrentiRoute: typeof RicorrentiRoute
-  ScadenzeRoute: typeof ScadenzeRoute
-  SpeseCondiviseRoute: typeof SpeseCondiviseRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AuthRoute: typeof AuthRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/': {
+      id: '/_authenticated/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/conti': {
-      id: '/conti'
+    '/_authenticated/conti': {
+      id: '/_authenticated/conti'
       path: '/conti'
       fullPath: '/conti'
-      preLoaderRoute: typeof ContiRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedContiRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/impostazioni': {
-      id: '/impostazioni'
+    '/_authenticated/impostazioni': {
+      id: '/_authenticated/impostazioni'
       path: '/impostazioni'
       fullPath: '/impostazioni'
-      preLoaderRoute: typeof ImpostazioniRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedImpostazioniRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/investimenti': {
-      id: '/investimenti'
+    '/_authenticated/investimenti': {
+      id: '/_authenticated/investimenti'
       path: '/investimenti'
       fullPath: '/investimenti'
-      preLoaderRoute: typeof InvestimentiRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedInvestimentiRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/movimenti': {
-      id: '/movimenti'
+    '/_authenticated/movimenti': {
+      id: '/_authenticated/movimenti'
       path: '/movimenti'
       fullPath: '/movimenti'
-      preLoaderRoute: typeof MovimentiRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedMovimentiRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/patrimonio': {
-      id: '/patrimonio'
+    '/_authenticated/patrimonio': {
+      id: '/_authenticated/patrimonio'
       path: '/patrimonio'
       fullPath: '/patrimonio'
-      preLoaderRoute: typeof PatrimonioRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedPatrimonioRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/report': {
-      id: '/report'
+    '/_authenticated/report': {
+      id: '/_authenticated/report'
       path: '/report'
       fullPath: '/report'
-      preLoaderRoute: typeof ReportRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedReportRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/ricorrenti': {
-      id: '/ricorrenti'
+    '/_authenticated/ricorrenti': {
+      id: '/_authenticated/ricorrenti'
       path: '/ricorrenti'
       fullPath: '/ricorrenti'
-      preLoaderRoute: typeof RicorrentiRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedRicorrentiRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/scadenze': {
-      id: '/scadenze'
+    '/_authenticated/scadenze': {
+      id: '/_authenticated/scadenze'
       path: '/scadenze'
       fullPath: '/scadenze'
-      preLoaderRoute: typeof ScadenzeRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedScadenzeRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/spese-condivise': {
-      id: '/spese-condivise'
+    '/_authenticated/spese-condivise': {
+      id: '/_authenticated/spese-condivise'
       path: '/spese-condivise'
       fullPath: '/spese-condivise'
-      preLoaderRoute: typeof SpeseCondiviseRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedSpeseCondiviseRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
   }
 }
 
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedContiRoute: typeof AuthenticatedContiRoute
+  AuthenticatedImpostazioniRoute: typeof AuthenticatedImpostazioniRoute
+  AuthenticatedInvestimentiRoute: typeof AuthenticatedInvestimentiRoute
+  AuthenticatedMovimentiRoute: typeof AuthenticatedMovimentiRoute
+  AuthenticatedPatrimonioRoute: typeof AuthenticatedPatrimonioRoute
+  AuthenticatedReportRoute: typeof AuthenticatedReportRoute
+  AuthenticatedRicorrentiRoute: typeof AuthenticatedRicorrentiRoute
+  AuthenticatedScadenzeRoute: typeof AuthenticatedScadenzeRoute
+  AuthenticatedSpeseCondiviseRoute: typeof AuthenticatedSpeseCondiviseRoute
+  AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedContiRoute: AuthenticatedContiRoute,
+  AuthenticatedImpostazioniRoute: AuthenticatedImpostazioniRoute,
+  AuthenticatedInvestimentiRoute: AuthenticatedInvestimentiRoute,
+  AuthenticatedMovimentiRoute: AuthenticatedMovimentiRoute,
+  AuthenticatedPatrimonioRoute: AuthenticatedPatrimonioRoute,
+  AuthenticatedReportRoute: AuthenticatedReportRoute,
+  AuthenticatedRicorrentiRoute: AuthenticatedRicorrentiRoute,
+  AuthenticatedScadenzeRoute: AuthenticatedScadenzeRoute,
+  AuthenticatedSpeseCondiviseRoute: AuthenticatedSpeseCondiviseRoute,
+  AuthenticatedIndexRoute: AuthenticatedIndexRoute,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
-  ContiRoute: ContiRoute,
-  ImpostazioniRoute: ImpostazioniRoute,
-  InvestimentiRoute: InvestimentiRoute,
-  MovimentiRoute: MovimentiRoute,
-  PatrimonioRoute: PatrimonioRoute,
-  ReportRoute: ReportRoute,
-  RicorrentiRoute: RicorrentiRoute,
-  ScadenzeRoute: ScadenzeRoute,
-  SpeseCondiviseRoute: SpeseCondiviseRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AuthRoute: AuthRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

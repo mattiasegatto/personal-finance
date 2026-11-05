@@ -16,7 +16,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { dateFull, dateShort as dateLabel, equalShares, eur, monthLabel, monthShort, netBalances, outstandingDebt, validateSettlement, type Settlement, type SharedExpense } from "@/lib/domain";
 import { categories, memberName, members, settlements as demoSettlements, sharedExpenses } from "@/lib/mock-data";
 
-export const Route = createFileRoute("/spese-condivise")({
+export const Route = createFileRoute("/_authenticated/spese-condivise")({
   head: () => ({
     meta: [
       { title: "Spese condivise — Fondo" },
