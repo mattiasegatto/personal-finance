@@ -72,15 +72,15 @@ function Transactions() {
         </div>
       )}
 
-      <div className="mb-4 grid gap-3 rounded-2xl border bg-card p-4 md:grid-cols-6">
-        <Input placeholder="Cerca…" value={q} onChange={(e) => setQ(e.target.value)} className="md:col-span-2" aria-label="Cerca" />
+      <div className="mb-4 grid gap-3 rounded-2xl border bg-card p-4 md:grid-cols-4 xl:grid-cols-7">
+        <Input placeholder="Cerca…" value={q} onChange={(e) => setQ(e.target.value)} className="md:col-span-4 xl:col-span-2" aria-label="Cerca" />
         <Select value={acc} onValueChange={setAcc}><SelectTrigger aria-label="Filtra conto"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value={ALL}>Tutti i conti</SelectItem>{data.accounts.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent></Select>
         <Select value={dir} onValueChange={setDir}><SelectTrigger aria-label="Filtra direzione"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value={ALL}>Entrate e uscite</SelectItem><SelectItem value="inflow">Entrate</SelectItem><SelectItem value="outflow">Uscite</SelectItem></SelectContent></Select>
         <Select value={cat} onValueChange={setCat}><SelectTrigger aria-label="Filtra categoria"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value={ALL}>Tutte le categorie</SelectItem>{data.categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>)}</SelectContent></Select>
-        <div className="flex gap-2"><Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} aria-label="Dal" /><Input type="date" value={to} onChange={(e) => setTo(e.target.value)} aria-label="Al" /></div>
+        <div className="flex gap-2 md:col-span-4 xl:col-span-2"><Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} aria-label="Dal" /><Input type="date" value={to} onChange={(e) => setTo(e.target.value)} aria-label="Al" /></div>
       </div>
 
       <div className="mb-4 flex flex-wrap gap-6 text-sm">

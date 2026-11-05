@@ -10,4 +10,5 @@
 - [x] Specifica consolidata: spazi, categorie uniche, flusso unico di inserimento, trasferimenti, commissioni, rettifiche.
 - [x] Tre decisioni aperte confermate da Mattia: commissione autonoma alla cancellazione, cambio pagatore rifiutato finché collegato, modifica atomica delle gambe.
 - [x] Fase 1: autenticazione (email+password, Google), spazi personali/condivisi, inviti, RLS, test di isolamento.
-- [ ] Fase 2 (movimenti, conti, trasferimenti, spese, regolamenti): in attesa di approvazione esplicita di Mattia.
+- [x] Fase 2: conti, categorie personali provvisorie, entrate/uscite con saldi calcolati; 23 controlli DB + prova browser.
+- [ ] Fase 3 (trasferimenti, spese condivise, regolamenti, investimenti): in attesa di approvazione esplicita di Mattia.
