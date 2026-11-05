@@ -51,7 +51,7 @@ with u as (update public.spaces set name='hack' where kind='personal' and create
 select pg_temp.check('B non può rinominare lo spazio personale di A', (select count(*) from u) = 0);
 select pg_temp.check('B non può entrare nello spazio personale di A', pg_temp.fails($$insert into public.space_memberships(space_id,user_id,role) select id,'00000000-0000-0000-0000-00000000000b','member' from public.spaces limit 1$$));
 -- member non gestisce persone
-with u as (update public.space_memberships set role='owner' where user_id='00000000-0000-0000-0000-00000000000b' returning 1)
+with u as (update public.space_memberships set role='owner' where user_id='00000000-0000-0000-0000-00000000000b' and space_id=(select sid from _ids) returning 1)
 select pg_temp.check('member non si promuove owner', (select count(*) from u) = 0);
 with d as (delete from public.space_memberships where user_id='00000000-0000-0000-0000-00000000000a' returning 1)
 select pg_temp.check('member non rimuove owner', (select count(*) from d) = 0);
