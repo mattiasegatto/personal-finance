@@ -36,6 +36,13 @@
       "when": 1793913558198,
       "tag": "0004_fix_transaction_guard_cross_space",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793913586991,
+      "tag": "0005_revoke_anon_finance",
+      "breakpoints": true
     }
   ]
 }
