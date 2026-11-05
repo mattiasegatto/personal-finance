@@ -14,5 +14,9 @@
 - Shared expenses reference personal bank transactions via `linkedTransactionId` instead of copying them — why: avoid duplicated outflows.
 - Settlements are their own entity, never income or shared expenses — why: reimbursements only move debt between members.
 - Splits are a per-member `shares` list — why: future N participants and variable quotas.
-- Prototype phase: demo data only in `src/lib/mock-data.ts`, no backend/auth — why: user requested visual prototype first.
+- Phase 1 backend: auth, profiles, spaces, memberships and invitations live in Lovable Cloud; financial screens still use demo data from `src/lib/mock-data.ts` until the user approves the next phase — why: phased rollout with explicit approval.
+- Space access is enforced in the database (RLS via security-definer helpers `is_space_member`/`has_space_role`); spaces and memberships are created only through RPCs (`create_shared_space`, `invite_to_space`, `accept_invitation`) and a signup trigger creates the personal space — why: client code must never be able to grant itself access.
+- Personal spaces have exactly one owner member and cannot be archived; shared spaces always keep at least one owner (DB triggers) — why: strict personal/shared separation.
+- Authorization tests live in `supabase/tests/rls_isolation.sql` and run in a rolled-back transaction — why: verify isolation without leaving data.
+- Signed-in pages live under `src/routes/_authenticated/` (client-only gate, sidebar layout); `/auth` and `/reset-password` are public — why: session is in browser storage.
 - SplitDialog is mounted only while editing and preserves original shares until an explicit change; its named export supports calculation regression tests — why: cancel must discard drafts and unchanged saves must not round monetary shares.
