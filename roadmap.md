@@ -8,4 +8,5 @@
 - [x] Modulo "Registra pareggio" con validazione, storico, eliminazione con conferma; 7 test + verifica in browser.
 # Specifica database (solo progettazione)
 - [x] Specifica consolidata: spazi, categorie uniche, flusso unico di inserimento, trasferimenti, commissioni, rettifiche.
-- [ ] Implementazione database/autenticazione: BLOCCATA in attesa di approvazione esplicita di Mattia (3 decisioni aperte: commissione alla cancellazione trasferimento, cambio pagatore con movimento collegato, modifica vs cancella+ricrea per i trasferimenti).
+- [x] Tre decisioni aperte confermate da Mattia: commissione autonoma alla cancellazione, cambio pagatore rifiutato finché collegato, modifica atomica delle gambe.
+- [ ] Implementazione database/autenticazione: BLOCCATA in attesa di approvazione esplicita di Mattia della specifica aggiornata completa.
