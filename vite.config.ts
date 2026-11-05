@@ -14,7 +14,7 @@ export default defineConfig({
         "@radix-ui/react-tooltip", "@radix-ui/react-dialog", "@radix-ui/react-alert-dialog", "@radix-ui/react-select",
         "@radix-ui/react-tabs", "@radix-ui/react-slider", "@radix-ui/react-slot",
         "@radix-ui/react-separator", "@radix-ui/react-label", "lucide-react", "recharts",
-        "@supabase/supabase-js", "@lovable.dev/cloud-auth-js", "sonner", "next-themes", "@tanstack/react-query",
+        "@supabase/supabase-js", "@lovable.dev/cloud-auth-js", "sonner", "@tanstack/react-query",
       ],
     },
   },
