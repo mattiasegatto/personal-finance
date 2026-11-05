@@ -22,6 +22,13 @@
       "when": 1793913482170,
       "tag": "0002_personal_accounts_transactions",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793913491783,
+      "tag": "0003_accounts_delete_empty",
+      "breakpoints": true
     }
   ]
 }
