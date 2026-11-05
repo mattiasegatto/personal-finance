@@ -81,7 +81,7 @@ function Settings() {
 type SpaceView = Awaited<ReturnType<NonNullable<typeof spacesQuery.queryFn>>>["spaces"][number];
 
 function SpaceCard({ space: s, uid, run }: {
-  space: SpaceView; uid?: string;
+  space: SpaceView; uid: string | undefined;
   run: (fn: () => PromiseLike<{ error: unknown }>, ok: string) => () => Promise<void>;
 }) {
   const isOwner = s.myRole === "owner";
