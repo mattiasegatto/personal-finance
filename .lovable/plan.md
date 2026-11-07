@@ -1,58 +1,48 @@
-# Fase 3A — Revisione SQL prima dell'applicazione
+# Fase 3A — Revisione finale SQL: integrità e protezioni
 
-Nessuna migrazione applicata, nessun oggetto creato, nessun file del repository modificato. Questo documento contiene solo analisi, SQL rivisto, garanzie, test e decisioni aperte.
+Nessuna migrazione applicata, nessun oggetto creato, nessun file del repository modificato. Solo analisi, SQL aggiornato, garanzie, test e decisioni aperte.
 
-## 1. Protezione delle RPC e variabile `app.transfer_rpc`
+## 1. Validatore di integrità — cosa controlla davvero
 
-**Chi può impostare la variabile.** `set_config` è eseguibile solo dentro una funzione richiamabile o con accesso SQL diretto. La connessione dell'app (API dati) espone solo tabelle, viste e RPC: né `authenticated` né `service_role` possono impostare una variabile di sessione attraverso di essa. Un INSERT/UPDATE diretto su `transactions`, `transfers` o `transfer_transaction_links` non può quindi mai avere `app.transfer_rpc = 'on'`, e il trigger lo rifiuta. La variabile è impostata con `is_local = true`: vale solo nella transazione della RPC e scompare al commit.
+`validate_transfer()` è stato rafforzato e ora verifica, per ogni trasferimento toccato, **tutti** gli invarianti dichiarati:
 
-**Perché non basta `current_user`.** Il test isolato ha dimostrato che dentro una RPC `current_user = postgres`. Affidarsi solo a quello legherebbe la protezione al proprietario della funzione: se cambiasse, la protezione cadrebbe silenziosamente. La variabile di sessione è indipendente dal proprietario.
+- esattamente una gamba `source` e una `destination` nei collegamenti;
+- `source_transaction_id` / `destination_transaction_id` della testata valorizzati, distinti e allineati ai collegamenti;
+- gambe esistenti, `operation_type = 'transfer'`, direzioni `outflow`/`inflow`, categoria NULL;
+- stesso spazio, importo, data **e descrizione** tra testata e gambe;
+- conti sorgente e destinazione distinti, appartenenti allo spazio del trasferimento, con **valuta identica**;
+- spazio di tipo **personale**;
+- coerenza di annullamento: testata attiva ⇒ entrambe le gambe attive; testata annullata ⇒ entrambe annullate.
 
-**Perché non basta la variabile.** La variabile non è mai trattata come prova di autorizzazione: non concede nulla. L'autorizzazione è verificata esplicitamente nella RPC (`auth.uid()` non nullo + `has_space_role(space, uid, [owner, member])`). La variabile serve solo al trigger per riconoscere il percorso autorizzato e bloccare tutto il resto.
+**Copertura delle modifiche alle gambe.** Nella versione precedente il validatore scattava solo su testata e collegamenti. Ora un terzo constraint trigger differito scatta anche su `transactions` (UPDATE/DELETE) per le righe `transfer`: qualunque modifica a una gamba — anche se riuscisse a superare la guardia — viene rivalidata al commit e annullata se lascia incoerenze. Le tre superfici (testata, collegamenti, gambe) sono quindi tutte coperte.
 
-**Come si blocca `service_role`.** `service_role` salta la RLS ma non i trigger:
-- modifica diretta di una gamba → `guard_transaction` rifiuta (variabile assente);
-- inserimento/modifica/cancellazione di un collegamento → `guard_transfer_links` rifiuta;
-- modifica diretta della testata (es. importo) → il validatore differito `validate_transfer` scatta al commit e rileva il disallineamento testata/gambe, annullando la transazione;
-- cancellazione fisica della testata → `guard_transfers` rifiuta.
+## 2. Variabile `app.transfer_rpc` — analisi concreta
 
-## 2. Integrità delle due gambe (garanzia a livello database)
+- **Chi può impostarla:** solo codice eseguito dentro il database (`set_config`). La connessione dell'app espone solo tabelle, viste e RPC: non esiste alcuna chiamata API che esegua `set_config`. Ho verificato le funzioni esposte esistenti (`create_shared_space`, `invite_to_space`, `accept_invitation`, `create_starter_categories`): nessuna imposta questa variabile. Le uniche funzioni che la imposteranno sono le tre nuove RPC.
+- **Imitazione:** un accesso diretto (INSERT/UPDATE via API) non può impostarla; una funzione esposta potrebbe solo se contenesse esplicitamente `set_config('app.transfer_rpc', …)` — nessuna lo fa né lo farà fuori dalle tre RPC.
+- **Identità e appartenenza prima del percorso protetto:** in tutte e tre le RPC i controlli `auth.uid()` non nullo e `has_space_role(spazio, uid, [owner, member])` avvengono **prima** di `set_config`. La variabile non è mai letta come prova di autorizzazione: non concede nulla, marca solo il percorso.
+- **Blocco di `service_role`:** salta la RLS ma non i trigger. Senza la variabile, `guard_transaction`, `guard_transfers` e `guard_transfer_links` rifiutano ogni scrittura diretta. Anche ipotizzando la variabile impostata (possibile solo con accesso SQL diretto, che l'app non offre), il validatore differito annulla al commit qualunque incoerenza.
+- **Conclusione:** la garanzia non poggia sulla variabile da sola, ma su tre strati indipendenti: RLS (ruoli normali), trigger di guardia (ogni ruolo, incluso `service_role`), validatore differito (qualunque scrittura, anche con variabile impostata).
 
-Tre meccanismi sovrapposti:
+## 3. Guardia della testata — rafforzata
 
-1. **Vincoli strutturali:** `transfer_transaction_links.transaction_id` è chiave primaria (un movimento appartiene al massimo a un trasferimento); `UNIQUE(transfer_id, role)` impedisce due gambe con lo stesso ruolo; tutte le FK con `ON DELETE RESTRICT`.
-2. **Trigger di guardia:** le gambe e i collegamenti sono scrivibili solo dentro la RPC; la testata non si cancella fisicamente.
-3. **Validatore differito al commit** (`CONSTRAINT TRIGGER ... DEFERRABLE INITIALLY DEFERRED` su `transfers` e su `transfer_transaction_links`): al commit di ogni transazione che tocca testata o collegamenti verifica che:
-   - esista esattamente una gamba `source` e una `destination`;
-   - `transfers.source_transaction_id` / `destination_transaction_id` coincidano con i collegamenti;
-   - le gambe esistano, siano `operation_type = 'transfer'`, direzioni `outflow`/`inflow`, categoria NULL;
-   - conti, importo, data e spazio delle gambe coincidano con la testata; conti distinti;
-   - trasferimento attivo ⇒ entrambe le gambe attive; trasferimento annullato ⇒ entrambe annullate.
+`guard_transfers()` ora rifiuta **ogni** UPDATE diretto (importo, conti, data, descrizione, annullamento, collegamenti) quando la variabile non è impostata — non più solo i cambi dei riferimenti alle gambe. Dentro la RPC restano immutabili spazio e `created_by`, e una testata annullata non è più modificabile. La cancellazione fisica resta vietata. Il validatore differito copre comunque qualunque incoerenza residua.
 
-Qualsiasi incoerenza — anche creata aggirando le RPC — fa fallire il commit. Nessun trasferimento attivo può restare incompleto o discordante.
+## 4. Archiviazione dei conti — verifica effettiva (decisione D1 sospesa)
 
-## 3. Conti archiviati (regole riviste)
+Ho letto la definizione **attualmente presente nel database** di `guard_account()`: non contiene alcun riferimento ai trasferimenti. L'archiviazione è oggi regolata solo dal vincolo del saldo zero.
 
-- **Creazione:** solo conti attivi (invariato).
-- **Modifica di descrizione e data:** consentita anche con conti archiviati — `update_transfer` applica il blocco solo se cambiano importo o conti.
-- **Modifica di importo o conti:** rifiutata se uno qualunque dei conti coinvolti (vecchi o nuovi) è archiviato.
-- **Annullamento:** sempre consentito; l'interfaccia segnalerà la necessità di riconciliare il saldo.
+La migrazione proposta **non modifica `guard_account()`**. Comportamento risultante, esatto:
+- archiviare un conto con trasferimenti attivi è **consentito**, purché il saldo sia zero (regola esistente);
+- su quel conto: nuovi trasferimenti rifiutati; modifica di descrizione/data dei trasferimenti esistenti consentita; modifica di importo/conti rifiutata; annullamento consentito.
 
-**Decisione D1 (richiede la tua approvazione):** queste regole presuppongono che un conto con trasferimenti attivi possa essere archiviato. La specifica precedente diceva "rifiutata se ci sono trasferimenti attivi, oppure gestita con avviso esplicito". Propongo di **consentire l'archiviazione con trasferimenti attivi** (resta il vincolo del saldo zero), con avviso in interfaccia. In alternativa mantengo il blocco e le regole sui conti archiviati restano teoriche. Il SQL sotto segue la proposta (nessun blocco in `guard_account`).
+Se invece decidi di bloccare l'archiviazione con trasferimenti attivi, aggiungerò a `guard_account()` un controllo esplicito — solo dopo la tua decisione.
 
-## 4. Compatibilità con il sistema esistente
+## 5. Privilegi delle funzioni
 
-Il trigger esistente è `transactions_guard` (BEFORE INSERT/UPDATE) su `transactions`, che esegue `guard_transaction()`. `CREATE OR REPLACE FUNCTION` sostituisce il corpo mantenendo nome e firma: il trigger resta collegato senza modifiche.
+PostgreSQL concede EXECUTE a PUBLIC per default. La migrazione revoca l'esecuzione pubblica di **tutte** le funzioni interne (guardie, validatori, trigger function — incluse `guard_transaction` e `guard_account` già esistenti, che sono solo trigger function) e concede EXECUTE solo sulle tre RPC, solo ad `authenticated` (revocato a PUBLIC e `anon`). Le trigger function non richiedono privilegi EXECUTE per scattare: la revoca è sicura.
 
-Validazioni attuali **tutte preservate**: spazio immutabile; movimento eliminato non modificabile; `created_by` immutabile; solo spazi personali; conto dello stesso spazio; conto archiviato non usabile per nuovi movimenti o cambi di conto; categoria dello stesso spazio; categoria archiviata non usabile; coerenza categoria/direzione; `updated_at` automatico.
-
-Nuove protezioni aggiunte: `operation_type` immutabile (un ordinario non può diventare trasferimento né viceversa); categoria obbligatoria per gli ordinari (prima garantita solo dal NOT NULL, ora dal trigger); ramo `transfer` con categoria NULL e scrittura solo via RPC.
-
-## 5. Migrazione enum
-
-`ALTER TYPE public.tx_operation ADD VALUE 'transfer'` è ammesso in transazione da PostgreSQL 12+, con il vincolo che il nuovo valore non sia **usato** nella stessa transazione. La migrazione è solo DDL: nessuna riga inserita e i corpi delle funzioni PL/pgSQL non sono validati alla creazione, quindi il valore non viene mai usato nella transazione di migrazione. Se lo strumento migrazioni lo rifiutasse comunque, fallback: una migrazione separata con il solo `ALTER TYPE`. Nota già comunicata: un valore enum aggiunto non è rimovibile; in caso di ripensamento resterebbe inutilizzato.
-
-## 6. SQL completo rivisto
+## 6. SQL completo aggiornato
 
 ```sql
 -- 1. Nuovo tipo di operazione
@@ -102,7 +92,7 @@ CREATE POLICY "links: membri leggono" ON public.transfer_transaction_links
     WHERE t.id = transfer_id AND public.is_space_member(t.space_id, auth.uid())
   ));
 
--- 5. Guardia della testata
+-- 5. Guardia della testata: nessuna modifica diretta, nessuna cancellazione fisica
 CREATE OR REPLACE FUNCTION public.guard_transfers()
  RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public'
 AS $function$
@@ -111,13 +101,11 @@ begin
     raise exception 'I trasferimenti non si cancellano fisicamente: usa l''annullamento.';
   end if;
   if tg_op = 'UPDATE' then
+    if old.deleted_at is not null then raise exception 'Un trasferimento annullato non può essere modificato.'; end if;
     if new.space_id <> old.space_id then raise exception 'Un trasferimento non può cambiare spazio.'; end if;
     if new.created_by is distinct from old.created_by then raise exception 'Campo non modificabile.'; end if;
-    if old.deleted_at is not null then raise exception 'Un trasferimento annullato non può essere modificato.'; end if;
-    if (new.source_transaction_id is distinct from old.source_transaction_id
-        or new.destination_transaction_id is distinct from old.destination_transaction_id)
-       and current_setting('app.transfer_rpc', true) is distinct from 'on' then
-      raise exception 'I collegamenti ai movimenti sono gestiti solo dalla funzione dedicata.';
+    if current_setting('app.transfer_rpc', true) is distinct from 'on' then
+      raise exception 'I trasferimenti si modificano solo tramite la funzione dedicata.';
     end if;
   end if;
   return new;
@@ -147,11 +135,12 @@ end $function$;
 CREATE TRIGGER links_guard BEFORE INSERT OR UPDATE OR DELETE ON public.transfer_transaction_links
   FOR EACH ROW EXECUTE FUNCTION public.guard_transfer_links();
 
--- 7. Validatore di coerenza, differito al commit
+-- 7. Validatore di coerenza (tutti gli invarianti)
 CREATE OR REPLACE FUNCTION public.validate_transfer(_transfer uuid)
  RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public'
 AS $function$
 declare t public.transfers; s public.transactions; d public.transactions;
+  sa public.accounts; da public.accounts;
   ns int; nd int; lsrc uuid; ldst uuid;
 begin
   select * into t from public.transfers where id = _transfer;
@@ -162,7 +151,10 @@ begin
     raise exception 'Trasferimento incoerente: serve esattamente una gamba sorgente e una destinazione.'; end if;
   select transaction_id into lsrc from public.transfer_transaction_links where transfer_id = t.id and role = 'source';
   select transaction_id into ldst from public.transfer_transaction_links where transfer_id = t.id and role = 'destination';
-  if t.source_transaction_id is distinct from lsrc or t.destination_transaction_id is distinct from ldst then
+  if t.source_transaction_id is null or t.destination_transaction_id is null
+     or t.source_transaction_id = t.destination_transaction_id
+     or t.source_transaction_id is distinct from lsrc
+     or t.destination_transaction_id is distinct from ldst then
     raise exception 'Testata e collegamenti del trasferimento non allineati.'; end if;
   select * into s from public.transactions where id = lsrc;
   select * into d from public.transactions where id = ldst;
@@ -170,14 +162,24 @@ begin
   if t.deleted_at is null then
     if s.deleted_at is not null or d.deleted_at is not null then
       raise exception 'Trasferimento attivo con una gamba eliminata.'; end if;
+    select * into sa from public.accounts where id = t.source_account_id;
+    select * into da from public.accounts where id = t.destination_account_id;
+    if sa.id is null or da.id is null
+       or sa.space_id <> t.space_id or da.space_id <> t.space_id
+       or sa.currency <> da.currency then
+      raise exception 'Conti del trasferimento incoerenti o di valuta diversa.'; end if;
+    if not public.is_personal_space(t.space_id) then
+      raise exception 'I trasferimenti sono ammessi solo nello spazio personale.'; end if;
     if s.operation_type <> 'transfer' or d.operation_type <> 'transfer'
        or s.direction <> 'outflow' or d.direction <> 'inflow'
        or s.category_id is not null or d.category_id is not null
        or s.account_id <> t.source_account_id or d.account_id <> t.destination_account_id
+       or s.account_id = d.account_id
        or s.amount_cents <> t.amount_cents or d.amount_cents <> t.amount_cents
        or s.occurred_on <> t.occurred_on or d.occurred_on <> t.occurred_on
        or s.space_id <> t.space_id or d.space_id <> t.space_id
-       or t.source_account_id = t.destination_account_id then
+       or s.description is distinct from t.description
+       or d.description is distinct from t.description then
       raise exception 'Gambe del trasferimento incoerenti con la testata.'; end if;
   else
     if s.deleted_at is null or d.deleted_at is null then
@@ -201,6 +203,18 @@ begin
   return null;
 end $function$;
 
+CREATE OR REPLACE FUNCTION public.validate_transfer_leg_trigger()
+ RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public'
+AS $function$
+declare tid uuid;
+begin
+  if coalesce(new.operation_type, old.operation_type) <> 'transfer' then return null; end if;
+  select transfer_id into tid from public.transfer_transaction_links
+  where transaction_id = coalesce(new.id, old.id);
+  if tid is not null then perform public.validate_transfer(tid); end if;
+  return null;
+end $function$;
+
 CREATE CONSTRAINT TRIGGER transfers_validate
   AFTER INSERT OR UPDATE ON public.transfers
   DEFERRABLE INITIALLY DEFERRED
@@ -209,8 +223,12 @@ CREATE CONSTRAINT TRIGGER links_validate
   AFTER INSERT OR UPDATE OR DELETE ON public.transfer_transaction_links
   DEFERRABLE INITIALLY DEFERRED
   FOR EACH ROW EXECUTE FUNCTION public.validate_transfer_link_trigger();
+CREATE CONSTRAINT TRIGGER legs_validate
+  AFTER UPDATE OR DELETE ON public.transactions
+  DEFERRABLE INITIALLY DEFERRED
+  FOR EACH ROW EXECUTE FUNCTION public.validate_transfer_leg_trigger();
 
--- 8. Guardia dei movimenti (sostituisce il corpo, trigger esistente invariato)
+-- 8. Guardia dei movimenti (corpo sostituito, trigger esistente invariato)
 CREATE OR REPLACE FUNCTION public.guard_transaction()
  RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public'
 AS $function$
@@ -253,7 +271,7 @@ begin
   return new;
 end $function$;
 
--- 9. Guardia conti: invariata (saldo zero per archiviare); nessun blocco per trasferimenti attivi — vedi decisione D1
+-- 9. guard_account: NESSUNA modifica (verificata la definizione attuale; decisione D1 sospesa)
 
 -- 10. RPC: creazione atomica
 CREATE OR REPLACE FUNCTION public.create_transfer(
@@ -380,37 +398,50 @@ begin
   where id in (t.source_transaction_id, t.destination_transaction_id);
 end $function$;
 
--- 13. Esecuzione riservata agli autenticati
+-- 13. Privilegi: RPC solo agli autenticati; funzioni interne non richiamabili
 REVOKE EXECUTE ON FUNCTION public.create_transfer(uuid, uuid, bigint, date, text) FROM PUBLIC, anon;
 REVOKE EXECUTE ON FUNCTION public.update_transfer(uuid, uuid, uuid, bigint, date, text) FROM PUBLIC, anon;
 REVOKE EXECUTE ON FUNCTION public.delete_transfer(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.create_transfer(uuid, uuid, bigint, date, text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.update_transfer(uuid, uuid, uuid, bigint, date, text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.delete_transfer(uuid) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.guard_transfers() FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.guard_transfer_links() FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.validate_transfer(uuid) FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.validate_transfer_trigger() FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.validate_transfer_link_trigger() FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.validate_transfer_leg_trigger() FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.guard_transaction() FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.guard_account() FROM PUBLIC, anon, authenticated;
 ```
 
-## 7. Test necessari dopo l'applicazione
+## 7. Criticità risolte rispetto alla versione precedente
 
-**Attraverso la connessione reale dell'app (account di prova):**
-1. Creazione: compaiono esattamente due movimenti (uscita/entrata), saldi aggiornati, testata e collegamenti coerenti.
-2. I totali entrate/uscite della pagina Movimenti non cambiano; i saldi dei conti sì.
-3. Modifica importo: entrambe le gambe aggiornate atomicamente.
-4. Annullamento: gambe eliminate logicamente, saldi ricalcolati, collegamenti storici conservati.
-5. Modifica diretta di una gamba dal client → rifiutata dal trigger.
-6. Scrittura diretta su testata o collegamenti dal client → negata (RLS/trigger).
-7. Errori: stesso conto, valute diverse, conto archiviato, importo ≤ 0, utente non membro, anonimo.
-8. Persistenza dopo logout e nuovo accesso.
+1. Il validatore ora controlla davvero tutti gli invarianti: riferimenti valorizzati e distinti, descrizione, appartenenza dei conti allo spazio, valuta identica, spazio personale, coerenza di annullamento.
+2. Le modifiche alle gambe sono coperte da un terzo constraint trigger differito su `transactions`: nessuna superficie scoperta.
+3. `guard_transfers` blocca ogni UPDATE diretto, non solo i riferimenti alle gambe.
+4. Privilegi: revocata l'esecuzione pubblica di tutte le funzioni interne; EXECUTE solo sulle tre RPC e solo per `authenticated`.
+5. `guard_account` verificata nel database e lasciata invariata: comportamento documentato, decisione D1 sospesa.
 
-**A livello database (test annullato come il Passo 0):**
-9. `service_role` in modifica diretta su gamba, testata e collegamenti → rifiutato o rilevato dal validatore al commit.
-10. Tentativo di trasferimento con una sola gamba o gambe disallineate → commit rifiutato dal validatore.
-11. Conto archiviato: modifica descrizione/data consentita; modifica importo rifiutata; annullamento consentito.
+## 8. Garanzie effettivamente implementate (e come)
 
-**Automatici (Vitest):** helper dei totali che esclude i trasferimenti; regressioni esistenti (18 test) devono restare verdi.
+- **Due gambe coerenti, sempre:** vincoli (PK globale, UNIQUE ruolo, FK RESTRICT) + guardie (scrittura solo via RPC) + validatore differito al commit su testata, collegamenti e gambe.
+- **Nessuna scrittura diretta:** RLS per i ruoli normali; trigger per ogni ruolo incluso `service_role`; validatore come rete finale anche con variabile impostata.
+- **Autorizzazione esplicita:** ogni RPC verifica `auth.uid()` e `has_space_role` prima di aprire il percorso protetto.
+- **Ordinari intatti:** tutte le validazioni esistenti preservate; `operation_type` immutabile; categoria obbligatoria per gli ordinari.
+- **Storicità:** nessuna cancellazione fisica; annullamento logico di testata e gambe; collegamenti conservati.
 
-## 8. Decisioni che richiedono la tua approvazione
+## 9. Test necessari dopo l'applicazione
 
-- **D1 — Archiviazione con trasferimenti attivi:** propongo di consentirla (resta il vincolo saldo zero), perché le tue regole sui conti archiviati la presuppongono. Alternativa: mantenere il blocco.
-- **D2 — Sostituzione del controllo `current_user`:** il meccanismo approvato nel Passo 0 usava `current_user`; la versione definitiva usa la variabile di transazione + validatore differito, più robusta e indipendente dal proprietario delle funzioni. Confermi la sostituzione?
+**Connessione reale dell'app (account di prova):** creazione (due movimenti, saldi, coerenza); totali entrate/uscite invariati; modifica importo atomica; annullamento con saldi ricalcolati e collegamenti storici; modifica diretta di una gamba rifiutata; scrittura diretta su testata/collegamenti negata; errori (stesso conto, valute diverse, conto archiviato, importo ≤ 0, non membro, anonimo); persistenza dopo logout/login.
+
+**Livello database (test annullato stile Passo 0):** `service_role` in scrittura diretta su gamba/testata/collegamenti; trasferimento con una gamba sola o disallineata rifiutato al commit; conto archiviato: descrizione/data consentite, importo rifiutato, annullamento consentito; revoche EXECUTE verificate.
+
+**Automatici:** helper totali che esclude i trasferimenti; i 18 test esistenti devono restare verdi.
+
+## 10. Decisioni ancora aperte
+
+- **D1 — Archiviazione con trasferimenti attivi:** la migrazione lascia `guard_account` invariata → archiviazione consentita con saldo zero, trasferimenti attivi gestibili solo in descrizione/data/annullamento. Se preferisci il blocco, lo aggiungo solo dopo tua decisione.
+- **D2 — Meccanismo `current_user` → variabile di transazione + validatore:** confermi la sostituzione rispetto al meccanismo del Passo 0.
 
 Nessuna modifica eseguita. Attendo la tua autorizzazione prima di applicare la migrazione.
