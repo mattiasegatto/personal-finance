@@ -1,150 +1,40 @@
-# Fase 3A — Specifica tecnica definitiva: trasferimenti tra conti personali
+# Fase 3A — Passo 0: rapporto sulla verifica della protezione delle gambe
 
-Documento progettuale. Nessun file, schema, dato o test è stato modificato o eseguito.
+## 1. Modifiche effettuate
+Nessuna. Repository, database e dati invariati. Eseguite solo letture del catalogo del database.
 
-## A. Stato attuale verificato (lettura repository, 7 nov 2026)
+## 2. Test eseguiti (sola lettura)
 
-- Migrazioni presenti: 0000–0005, invariate rispetto al report precedente.
-- `transactions` (0002): `category_id uuid NOT NULL` con FK a `categories`; `amount_cents > 0`; `operation_type tx_operation` con solo `ordinary`; nessun DELETE concesso.
-- Privilegi (0002/0005): `authenticated` ha SELECT/INSERT/UPDATE su `transactions`, solo SELECT su `transaction_revisions`; tutto revocato ad `anon` e `public`.
-- `guard_transaction()` (0004, SECURITY DEFINER): impone stesso spazio, conto non archiviato, categoria coerente con la direzione; blocca modifiche a movimenti eliminati. Richiede sempre una categoria.
-- `log_transaction()` (AFTER INSERT/UPDATE): una revisione per riga (insert/update/delete).
-- `account_balances` (security_invoker): saldo iniziale + entrate − uscite non eliminate. Somma tutte le direzioni, quindi i trasferimenti sarebbero già corretti nei saldi.
-- Pagina Movimenti: i totali Entrate/Uscite sommano ogni riga → andranno esclusi i trasferimenti.
-- Dashboard: usa ancora dati dimostrativi, nessun calcolo dal database da adattare.
-- Non verificabile in sola lettura: esecuzione dei test SQL multiutente (richiedono la creazione di utenti di prova).
+**Test 5 — Ruoli e privilegi** (eseguito, letture del catalogo):
+- `postgres` (proprietario di tutte le funzioni pubbliche): non superuser, BYPASSRLS = sì.
+- `authenticated`, `anon`: non superuser, nessun BYPASSRLS, **non sono membri di alcun ruolo**. Il rapporto è inverso: `postgres` e `authenticator` sono membri di `authenticated`/`anon`/`service_role`. Quindi un client autenticato non può assumere i privilegi di `postgres`.
+- `service_role`: BYPASSRLS = sì (solo lato server, mai nel browser).
+- `transactions` e `accounts`: RLS attiva, FORCE RLS disattivata (il proprietario la aggira, come previsto per le RPC).
+- Trigger su `transactions`: `transactions_guard` e `transactions_log`, entrambi SECURITY DEFINER. Eseguibili solo da `postgres` e `service_role`.
+- I privilegi di tabella per ruolo non sono visibili al ruolo di sola lettura usato per l'ispezione: restano quelli dichiarati nelle migrazioni 0002/0005 (non riconfermati ora sul database).
 
-## B. Architettura proposta (confermata con una semplificazione)
+## 3. Test non eseguiti e motivo
+- **Test 1** (identità vista da un trigger INVOKER in modifica diretta), **Test 2** (identità vista tramite RPC DEFINER), **Test 3** (RPC con utente non autorizzato), **Test 4** (policy RLS su righe di trasferimento): non eseguibili senza creare almeno una funzione e un trigger. Lo strumento di sola lettura non può creare oggetti né eseguire funzioni. Non sostituisco queste prove con deduzioni.
 
-- `transfers` (testata): id, space_id, source_account_id, destination_account_id, amount_cents (>0), occurred_on, description, created_by, deleted_at, timestamp. CHECK `source <> destination`.
-- `transfer_transaction_links`: `transaction_id` PK (unicità globale), `transfer_id` FK `ON DELETE RESTRICT`, `role` enum `transfer_leg_role ('source','destination')`, UNIQUE `(transfer_id, role)`.
-- Le gambe restano righe di `transactions` con `operation_type = 'transfer'` e `category_id NULL`.
-- **Semplificazione raccomandata:** la testata NON memorizza `source_transaction_id`/`destination_transaction_id`. La tabella dei collegamenti è l'unica fonte del legame: elimina alla radice la possibilità di divergenza testata↔link. Il ruolo `fee` non viene creato (commissioni escluse).
+## 4. Evidenze
+Solo quelle del Test 5 sopra. Nessun valore reale di `current_user` dentro un trigger è stato ancora osservato.
 
-## C. Integrità
+## 5. Valutazione (provvisoria)
+- RLS: la struttura dei ruoli permette la policy proposta; efficacia sulle righe di trasferimento non provata.
+- Trigger INVOKER + `current_user`: compatibile con i ruoli osservati; comportamento effettivo non provato.
+- RPC DEFINER: girerebbero come `postgres` con BYPASSRLS → devono verificare tutto esplicitamente.
+- Punto debole noto: `service_role` aggira la RLS; il trigger deve bloccarlo esplicitamente.
 
-**Vincoli dichiarativi:** PK globale su `transaction_id`; UNIQUE `(transfer_id, role)` → al massimo una source e una destination; CHECK conti distinti; FK RESTRICT.
-**Non garantibile in modo dichiarativo:** "esattamente due gambe" e coerenza tra righe di tabelle diverse.
+## 6. Conclusione
+**Sicurezza non verificata** (solo i prerequisiti sui ruoli sono confermati).
 
-**Constraint trigger `DEFERRABLE INITIALLY DEFERRED`** (funzione unica `check_transfer_integrity`), su:
-- `transfers` AFTER INSERT/UPDATE;
-- `transfer_transaction_links` AFTER INSERT/UPDATE/DELETE;
-- `transactions` AFTER INSERT/UPDATE quando `operation_type = 'transfer'`.
+## 7. Prossimo passo proposto — richiede la tua autorizzazione
+Test isolato con oggetti temporanei, in uno schema separato `phase0_probe`, senza toccare tabelle finanziarie:
+1. Creazione (una modifica al database): tabella fittizia `probe_rows(id, kind)` con RLS e grant a `authenticated`; trigger INVOKER che registra `current_user` in una tabella `probe_log` e rifiuta `kind='transfer'` se il ruolo è `authenticated`/`anon`/`service_role`; funzione DEFINER che modifica una riga `transfer`; policy RLS che consente a `authenticated` solo righe `ordinary`.
+2. Esecuzione, in transazioni annullate con dati fittizi: modifica diretta come `authenticated` (riga ordinary e transfer), chiamata alla funzione, chiamata senza autorizzazione, come `service_role`. Si leggono i valori registrati di `current_user`.
+3. Rimozione completa dello schema `phase0_probe` con una seconda modifica, e verifica che non resti nulla.
+- Reversibile: sì (schema separato, rimosso al termine; restano solo le due voci nello storico delle migrazioni).
+- Privilegi richiesti: quelli del proprietario delle migrazioni (`postgres`).
+- Limite: l'esecuzione come `authenticated` potrà richiedere la sessione di prova dal browser/API, se lo strumento non consente di impersonare il ruolo.
 
-Al commit, per ogni trasferimento toccato verifica: esattamente 2 link (source+destination); gamba source = `outflow` sul conto sorgente, destination = `inflow` sul conto destinazione; stesso spazio, importo, data, descrizione della testata; valute dei conti uguali; spazio personale; `deleted_at` delle gambe uguale a quello della testata. Inoltre: ogni movimento `transfer` deve avere un link (niente gambe orfane). Errore → rollback dell'intera transazione. Il differimento consente alla RPC di inserire testata, gambe e link in qualsiasi ordine.
-Limite noto: un client potrebbe impostare `SET CONSTRAINTS ... IMMEDIATE`, che anticipa il controllo ma non lo disattiva — sicuro.
-
-**Individuazione dei trasferimenti coinvolti** (ogni evento accoda un controllo per riga, eseguito al commit):
-- `transfers` INSERT/UPDATE → `NEW.id`. DELETE fisico vietato da trigger BEFORE DELETE + FK RESTRICT.
-- `transfer_transaction_links` INSERT → `NEW.transfer_id`; UPDATE → sia `OLD.transfer_id` sia `NEW.transfer_id` (spostare un link non può lasciare incompleto il trasferimento di origine); DELETE → `OLD.transfer_id` (in pratica vietato: nessun grant, trigger BEFORE DELETE).
-- `transactions` INSERT/UPDATE → trasferimento trovato tramite link su `NEW.id`; se la riga è `transfer` senza link → errore "gamba orfana"; se una riga cambia `operation_type` da `transfer` a `ordinary` → errore (CHECK + guard).
-- Al momento dell'esecuzione differita la funzione **rilegge lo stato corrente** delle tabelle (non usa `NEW`), quindi valida il risultato finale della transazione anche se lo stesso trasferimento è stato toccato più volte.
-
-**Comportamento per operazione:** creazione → 2 link richiesti al commit; modifica → testata e gambe devono di nuovo coincidere; annullamento → `deleted_at` di testata e gambe identici, link conservati; aggiornamento di una sola gamba → la gamba non coincide più con la testata o con l'altra gamba → errore al commit (oltre al blocco immediato di `guard_transfer_leg` per i client).
-
-**Regola trasferimenti e conti archiviati:**
-- Nuovo trasferimento da/verso un conto archiviato: rifiutato (RPC + `guard_transaction` su INSERT).
-- Modifica di descrizione o data di un trasferimento storico: consentita.
-- Modifica di importo o conti: consentita solo se nessun conto archiviato è coinvolto prima o dopo la modifica; spostare una gamba verso un conto archiviato è sempre vietato.
-- Annullamento: consentito via `delete_transfer` anche con conti archiviati, senza riattivarli. Conseguenza inevitabile: il conto archiviato non ha più saldo zero. Il conto resta archiviato, i movimenti ordinari restano bloccati (`guard_transaction` già rifiuta INSERT su conti archiviati) e l'interfaccia lo segnala come "archiviato — saldo da riconciliare". `guard_account` non viene toccato: controlla il saldo solo nel momento dell'archiviazione.
-
-**RPC (logica, non SQL):**
-- `create_transfer(source, destination, amount, date, description)`: valida, inserisce testata, due gambe, due link; ritorna id.
-- `update_transfer(id, source, destination, amount, date, description)`: blocca la testata (`FOR UPDATE`), aggiorna testata e entrambe le gambe nella stessa transazione.
-- `delete_transfer(id)`: soft-delete di testata e due gambe con lo stesso istante; link conservati.
-
-## D. Sicurezza
-
-**Privilegi:**
-- `transactions`: invariati per `authenticated` (SELECT/INSERT/UPDATE) per non rompere i movimenti ordinari.
-- `transfers`, `transfer_transaction_links`: solo SELECT ad `authenticated`; nessun privilegio ad `anon`/`public`; `service_role` completo. Nessuna policy INSERT/UPDATE/DELETE.
-- RPC: `REVOKE EXECUTE FROM public, anon`; `GRANT EXECUTE TO authenticated`.
-
-**RLS:** SELECT su testata e link se `is_space_member(space_id, auth.uid())` (il link legge lo spazio tramite la testata o una colonna `space_id` ridondante verificata dal trigger differito).
-
-**Protezione delle gambe senza GUC — meccanismo proposto:**
-Nuovo trigger **SECURITY INVOKER** `guard_transfer_leg` (BEFORE INSERT/UPDATE su `transactions`). Rifiuta l'operazione se riguarda una riga `transfer` (vecchia o nuova, o presente nei link) e `current_user` è `authenticated` o `anon`.
-Perché non è falsificabile (ragionamento, in parte verificato):
-- Semantica PostgreSQL documentata: dentro una funzione SECURITY DEFINER `current_user` è il proprietario della funzione; i trigger INVOKER attivati dalle sue istruzioni vedono lo stesso `current_user`. Una modifica diretta via API gira come `authenticated`.
-- **Verificato ora in sola lettura** sul database: le funzioni esistenti sono di proprietà di `postgres`; `postgres` non è superuser ma ha BYPASSRLS; `authenticated` e `anon` non sono membri di nessun ruolo; nessun ruolo è membro di `postgres`. Quindi un client autenticato non può assumere i privilegi della RPC con `SET ROLE`.
-- Conseguenza: le RPC aggirano la RLS (BYPASSRLS), perciò devono verificare esplicitamente utente, ruolo e conti (già previsto).
-- `service_role` (solo lato server, mai nel browser) non sarebbe bloccato da `guard_transfer_leg` se lo si esclude: proposta di bloccarlo comunque, consentendo solo il proprietario delle RPC.
-- **Non ancora verificato con prova concreta:** il valore effettivo di `current_user` dentro trigger attivato da una RPC in Lovable Cloud. Richiede la creazione di una funzione, quindi non eseguibile ora. Diventa il passo 0 dell'implementazione: test in transazione annullata che registra `current_user` (a) da RPC definer, (b) da UPDATE diretto come `authenticated`. Se l'esito differisce dall'atteso, si ripiega su: revoca di UPDATE diretto su `transactions` per le sole righe `transfer` tramite policy RLS `operation_type = 'ordinary'` in USING/WITH CHECK (efficace perché le RPC aggirano la RLS). Proposta: adottare **entrambe** le difese (policy RLS + trigger).
-Il trigger deve essere INVOKER: dentro un trigger DEFINER `current_user` sarebbe sempre il proprietario e il controllo sarebbe inutile.
-Blocca: cambio importo, conto, direzione, data, categoria, soft-delete diretto, conversione ordinary↔transfer, inserimento diretto di gambe.
-
-**Controlli nelle RPC:** `SET search_path = public, pg_temp`; nomi qualificati; `auth.uid()` non nullo; ruolo owner/member tramite `has_space_role`; entrambi i conti nello spazio, personale, non archiviati, stessa valuta; importo > 0; proprietario della funzione senza esposizione di parametri dinamici (nessun SQL dinamico).
-
-**`guard_transaction()` adattato:** se `operation_type = 'transfer'` richiede `category_id IS NULL` e salta i controlli di categoria; se `ordinary` richiede categoria come oggi.
-
-## E. Compatibilità
-
-- `category_id` diventa nullable + CHECK `(operation_type = 'transfer') = (category_id IS NULL)`: nessun movimento ordinario senza categoria, nessun trasferimento con categoria.
-- Enum: `ALTER TYPE tx_operation ADD VALUE 'transfer'` in migrazione separata (il nuovo valore non è usabile nella stessa transazione).
-- Audit: invariato; ogni gamba produce le sue revisioni. Le revisioni si collegano alla testata tramite il link (nessun nuovo sistema). Rollback della transazione → nessuna revisione parziale.
-- Saldi: `account_balances` invariata, già corretta.
-- Pagina Movimenti: totali escludono `transfer`; righe con badge "Trasferimento" e conto controparte; pulsanti Modifica/Elimina aprono il dialog trasferimento; filtro tipo (ordinari/trasferimenti); filtro categoria esclude i trasferimenti.
-- Categorie: l'eliminazione/archiviazione non è influenzata (i trasferimenti non usano categorie).
-
-## F. Rollback
-
-- **Disattivazione funzionale** (preferita): revoca EXECUTE sulle RPC e nasconde il pulsante; dati e storico intatti.
-- **Rollback dati:** nessuna cancellazione fisica. Opzione: soft-delete di tutti i trasferimenti attivi via `delete_transfer` (saldi ripristinati, storico conservato).
-- **Rollback schema** (solo se zero trasferimenti mai creati): rimuovere RPC, trigger, policy, tabelle, ripristinare `guard_transaction` e `NOT NULL`. Se esistono gambe storiche il `NOT NULL` non può tornare: si mantiene il CHECK.
-- **Enum:** il valore `transfer` resta (PostgreSQL non rimuove valori senza ricreare il tipo); innocuo.
-- Controlli preliminari: conteggio trasferimenti/gambe, backup, verifica saldi prima/dopo.
-
-## G. Piano di test (da eseguire in implementazione)
-
-| Area | Scenario | Atteso | Controllo | Livello |
-|---|---|---|---|---|
-| Integrità | Trasferimento valido | 2 gambe, saldi corretti | RPC + trigger differito | DB/RPC |
-| Integrità | Una gamba / nessuna gamba | Rifiuto al commit | Trigger differito | DB |
-| Integrità | Doppia source/destination | Rifiuto | UNIQUE | DB |
-| Integrità | Importi, valute, direzioni diversi | Rifiuto | Trigger differito / RPC | DB |
-| Integrità | Stesso conto / spazi diversi | Rifiuto | CHECK / RPC | DB |
-| Sicurezza | Utente non membro o viewer | Rifiuto | RPC `has_space_role` | RPC |
-| Sicurezza | Insert/update diretto su testata o link | Permesso negato | Grant + RLS | RLS |
-| Sicurezza | Update diretto importo/conto/data di una gamba | Rifiuto | `guard_transfer_leg` | DB |
-| Sicurezza | Soft-delete diretto di una gamba | Rifiuto | `guard_transfer_leg` | DB |
-| Sicurezza | Inserire riga `transfer` via API / convertire ordinary | Rifiuto | `guard_transfer_leg` + CHECK | DB |
-| Sicurezza | Anonimo legge/chiama RPC | Negato | Revoke | RLS |
-| Sicurezza | Altro utente legge trasferimenti | 0 righe | RLS | RLS |
-| Audit | Create/update/delete | 2 revisioni per operazione | `log_transaction` | DB |
-| Audit | Errore a metà RPC | Nessuna riga, nessuna revisione | Transazione | DB |
-| Compat. | Movimento ordinario senza categoria | Rifiuto | CHECK | DB |
-| Compat. | Entrate/uscite ordinarie | Invariate | Test esistenti | DB |
-| Compat. | Totali e filtri Movimenti | Trasferimenti esclusi | Codice pagina | Frontend |
-| Compat. | Archiviazione conto con trasferimenti | Solo a saldo zero | `guard_account` | DB |
-
-**Stato dei test:** nessuno eseguito; tutti sono solo progettati.
-- Eseguibili in sviluppo senza utenti (dopo implementazione): CHECK, UNIQUE, enum, privilegi/grant, firme RPC, verifica `current_user` (passo 0).
-- Richiedono utenti o dati di prova in transazione annullata: integrità, sicurezza tra utenti, audit, conti archiviati, rollback automatico. In Lovable Cloud la creazione di utenti fittizi via SQL non è risultata eseguibile: servirà un account di prova temporaneo o la sessione dell'utente con dati fittizi poi annullati.
-- Solo dopo implementazione nel browser: dialog, badge, filtri, totali Movimenti, saldi.
-- Nuovi casi: annullamento con conto archiviato (consentito, saldo da riconciliare); modifica importo con conto archiviato (rifiutata); nuovo trasferimento verso conto archiviato (rifiutato); spostamento di un link tra trasferimenti (rifiutato al commit); UPDATE diretto da `service_role` su una gamba (rifiutato).
-
-Test SQL in transazione annullata (`supabase/tests/transfer_isolation.sql`), Vitest per esclusione dai totali, Playwright con dati fittizi poi annullati.
-
-## H. Piano di implementazione
-
-1. **Enum** — migrazione con solo `ADD VALUE 'transfer'`. Fatto: valore presente. Rollback: nessuno necessario.
-2. **Schema** — tabelle, CHECK, nullable categoria, indici, grant, RLS. Test: privilegi e RLS.
-3. **Protezione** — `guard_transaction` adattato, `guard_transfer_leg`, trigger differito. Test: modifiche dirette rifiutate.
-4. **RPC** — tre funzioni con grant puntuali. Test: matrice integrità/audit.
-5. **Frontend** — dialog trasferimento, badge, filtri, esclusione dai totali in `movimenti.tsx`; query estesa in `finance.ts`. Test: Vitest + browser.
-6. **Verifica finale** — 18 test esistenti + nuovi, linter, aggiornamento `AGENTS.md` e roadmap.
-Ogni passo richiede il precedente; rischi principali: regressioni nei movimenti ordinari (mitigato dai test esistenti).
-
-## I. Decisioni richieste
-
-1. Approvare la rimozione degli ID gambe dalla testata (link come unica fonte), oppure mantenerli con controllo differito di coerenza.
-2. Approvare il meccanismo `current_user` + trigger INVOKER come protezione delle gambe.
-3. Approvare la regola sui conti archiviati (annullamento consentito con saldo "da riconciliare", modifiche di importo/conto vietate se coinvolgono conti archiviati).
-4. Approvare la doppia difesa (policy RLS sulle righe ordinarie + trigger `current_user`).
-
-## J. Conclusione
-
-1. Sì, la specifica è pronta per l'approvazione.
-2. Incerto finché non testato: comportamento effettivo di `current_user` nei trigger con il ruolo proprietario in Lovable Cloud; esecuzione dei test multiutente.
-3. Indispensabili: categoria nullable con CHECK, enum, trigger differito, protezione delle gambe, esclusione dai totali.
-4. Rischi residui: chi ha privilegi di servizio aggira i controlli applicativi (ma non il trigger differito); il valore enum resta permanentemente.
+Approvando questo piano autorizzi solo il test temporaneo sopra; nessuno schema, RPC o interfaccia della Fase 3A.
