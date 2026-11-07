@@ -34,6 +34,20 @@ Documento progettuale. Nessun file, schema, dato o test è stato modificato o es
 Al commit, per ogni trasferimento toccato verifica: esattamente 2 link (source+destination); gamba source = `outflow` sul conto sorgente, destination = `inflow` sul conto destinazione; stesso spazio, importo, data, descrizione della testata; valute dei conti uguali; spazio personale; `deleted_at` delle gambe uguale a quello della testata. Inoltre: ogni movimento `transfer` deve avere un link (niente gambe orfane). Errore → rollback dell'intera transazione. Il differimento consente alla RPC di inserire testata, gambe e link in qualsiasi ordine.
 Limite noto: un client potrebbe impostare `SET CONSTRAINTS ... IMMEDIATE`, che anticipa il controllo ma non lo disattiva — sicuro.
 
+**Individuazione dei trasferimenti coinvolti** (ogni evento accoda un controllo per riga, eseguito al commit):
+- `transfers` INSERT/UPDATE → `NEW.id`. DELETE fisico vietato da trigger BEFORE DELETE + FK RESTRICT.
+- `transfer_transaction_links` INSERT → `NEW.transfer_id`; UPDATE → sia `OLD.transfer_id` sia `NEW.transfer_id` (spostare un link non può lasciare incompleto il trasferimento di origine); DELETE → `OLD.transfer_id` (in pratica vietato: nessun grant, trigger BEFORE DELETE).
+- `transactions` INSERT/UPDATE → trasferimento trovato tramite link su `NEW.id`; se la riga è `transfer` senza link → errore "gamba orfana"; se una riga cambia `operation_type` da `transfer` a `ordinary` → errore (CHECK + guard).
+- Al momento dell'esecuzione differita la funzione **rilegge lo stato corrente** delle tabelle (non usa `NEW`), quindi valida il risultato finale della transazione anche se lo stesso trasferimento è stato toccato più volte.
+
+**Comportamento per operazione:** creazione → 2 link richiesti al commit; modifica → testata e gambe devono di nuovo coincidere; annullamento → `deleted_at` di testata e gambe identici, link conservati; aggiornamento di una sola gamba → la gamba non coincide più con la testata o con l'altra gamba → errore al commit (oltre al blocco immediato di `guard_transfer_leg` per i client).
+
+**Regola trasferimenti e conti archiviati:**
+- Nuovo trasferimento da/verso un conto archiviato: rifiutato (RPC + `guard_transaction` su INSERT).
+- Modifica di descrizione o data di un trasferimento storico: consentita.
+- Modifica di importo o conti: consentita solo se nessun conto archiviato è coinvolto prima o dopo la modifica; spostare una gamba verso un conto archiviato è sempre vietato.
+- Annullamento: consentito via `delete_transfer` anche con conti archiviati, senza riattivarli. Conseguenza inevitabile: il conto archiviato non ha più saldo zero. Il conto resta archiviato, i movimenti ordinari restano bloccati (`guard_transaction` già rifiuta INSERT su conti archiviati) e l'interfaccia lo segnala come "archiviato — saldo da riconciliare". `guard_account` non viene toccato: controlla il saldo solo nel momento dell'archiviazione.
+
 **RPC (logica, non SQL):**
 - `create_transfer(source, destination, amount, date, description)`: valida, inserisce testata, due gambe, due link; ritorna id.
 - `update_transfer(id, source, destination, amount, date, description)`: blocca la testata (`FOR UPDATE`), aggiorna testata e entrambe le gambe nella stessa transazione.
@@ -50,7 +64,13 @@ Limite noto: un client potrebbe impostare `SET CONSTRAINTS ... IMMEDIATE`, che a
 
 **Protezione delle gambe senza GUC — meccanismo proposto:**
 Nuovo trigger **SECURITY INVOKER** `guard_transfer_leg` (BEFORE INSERT/UPDATE su `transactions`). Rifiuta l'operazione se riguarda una riga `transfer` (vecchia o nuova, o presente nei link) e `current_user` è `authenticated` o `anon`.
-Perché non è falsificabile: le RPC sono SECURITY DEFINER, quindi le istruzioni eseguite al loro interno girano con il ruolo proprietario; un client via API gira sempre come `authenticated` e non può cambiare ruolo (non ha privilegi `SET ROLE`). Il trigger deve essere INVOKER: dentro un trigger DEFINER `current_user` sarebbe sempre il proprietario e il controllo sarebbe inutile.
+Perché non è falsificabile (ragionamento, in parte verificato):
+- Semantica PostgreSQL documentata: dentro una funzione SECURITY DEFINER `current_user` è il proprietario della funzione; i trigger INVOKER attivati dalle sue istruzioni vedono lo stesso `current_user`. Una modifica diretta via API gira come `authenticated`.
+- **Verificato ora in sola lettura** sul database: le funzioni esistenti sono di proprietà di `postgres`; `postgres` non è superuser ma ha BYPASSRLS; `authenticated` e `anon` non sono membri di nessun ruolo; nessun ruolo è membro di `postgres`. Quindi un client autenticato non può assumere i privilegi della RPC con `SET ROLE`.
+- Conseguenza: le RPC aggirano la RLS (BYPASSRLS), perciò devono verificare esplicitamente utente, ruolo e conti (già previsto).
+- `service_role` (solo lato server, mai nel browser) non sarebbe bloccato da `guard_transfer_leg` se lo si esclude: proposta di bloccarlo comunque, consentendo solo il proprietario delle RPC.
+- **Non ancora verificato con prova concreta:** il valore effettivo di `current_user` dentro trigger attivato da una RPC in Lovable Cloud. Richiede la creazione di una funzione, quindi non eseguibile ora. Diventa il passo 0 dell'implementazione: test in transazione annullata che registra `current_user` (a) da RPC definer, (b) da UPDATE diretto come `authenticated`. Se l'esito differisce dall'atteso, si ripiega su: revoca di UPDATE diretto su `transactions` per le sole righe `transfer` tramite policy RLS `operation_type = 'ordinary'` in USING/WITH CHECK (efficace perché le RPC aggirano la RLS). Proposta: adottare **entrambe** le difese (policy RLS + trigger).
+Il trigger deve essere INVOKER: dentro un trigger DEFINER `current_user` sarebbe sempre il proprietario e il controllo sarebbe inutile.
 Blocca: cambio importo, conto, direzione, data, categoria, soft-delete diretto, conversione ordinary↔transfer, inserimento diretto di gambe.
 
 **Controlli nelle RPC:** `SET search_path = public, pg_temp`; nomi qualificati; `auth.uid()` non nullo; ruolo owner/member tramite `has_space_role`; entrambi i conti nello spazio, personale, non archiviati, stessa valuta; importo > 0; proprietario della funzione senza esposizione di parametri dinamici (nessun SQL dinamico).
@@ -97,6 +117,12 @@ Blocca: cambio importo, conto, direzione, data, categoria, soft-delete diretto, 
 | Compat. | Totali e filtri Movimenti | Trasferimenti esclusi | Codice pagina | Frontend |
 | Compat. | Archiviazione conto con trasferimenti | Solo a saldo zero | `guard_account` | DB |
 
+**Stato dei test:** nessuno eseguito; tutti sono solo progettati.
+- Eseguibili in sviluppo senza utenti (dopo implementazione): CHECK, UNIQUE, enum, privilegi/grant, firme RPC, verifica `current_user` (passo 0).
+- Richiedono utenti o dati di prova in transazione annullata: integrità, sicurezza tra utenti, audit, conti archiviati, rollback automatico. In Lovable Cloud la creazione di utenti fittizi via SQL non è risultata eseguibile: servirà un account di prova temporaneo o la sessione dell'utente con dati fittizi poi annullati.
+- Solo dopo implementazione nel browser: dialog, badge, filtri, totali Movimenti, saldi.
+- Nuovi casi: annullamento con conto archiviato (consentito, saldo da riconciliare); modifica importo con conto archiviato (rifiutata); nuovo trasferimento verso conto archiviato (rifiutato); spostamento di un link tra trasferimenti (rifiutato al commit); UPDATE diretto da `service_role` su una gamba (rifiutato).
+
 Test SQL in transazione annullata (`supabase/tests/transfer_isolation.sql`), Vitest per esclusione dai totali, Playwright con dati fittizi poi annullati.
 
 ## H. Piano di implementazione
@@ -113,7 +139,8 @@ Ogni passo richiede il precedente; rischi principali: regressioni nei movimenti 
 
 1. Approvare la rimozione degli ID gambe dalla testata (link come unica fonte), oppure mantenerli con controllo differito di coerenza.
 2. Approvare il meccanismo `current_user` + trigger INVOKER come protezione delle gambe.
-3. Le gambe di un conto archiviato: ammettere la modifica/annullamento di trasferimenti storici che coinvolgono un conto archiviato? (Proposta: no, come per i movimenti ordinari.)
+3. Approvare la regola sui conti archiviati (annullamento consentito con saldo "da riconciliare", modifiche di importo/conto vietate se coinvolgono conti archiviati).
+4. Approvare la doppia difesa (policy RLS sulle righe ordinarie + trigger `current_user`).
 
 ## J. Conclusione
 
