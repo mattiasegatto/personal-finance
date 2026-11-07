@@ -12,3 +12,7 @@
 - [x] Fase 1: autenticazione (email+password, Google), spazi personali/condivisi, inviti, RLS, test di isolamento.
 - [x] Fase 2: conti, categorie personali provvisorie, entrate/uscite con saldi calcolati; 23 controlli DB + prova browser.
 - [ ] Fase 3 (trasferimenti, spese condivise, regolamenti, investimenti): in attesa di approvazione esplicita di Mattia.
+# Fase 3A — Trasferimenti
+- [x] Test isolato delle protezioni (10/10 casi, tutto annullato).
+- [ ] Revisione SQL richiesta da Mattia prima dell'applicazione: analisi, SQL rivisto, garanzie, test, decisioni aperte. Nessuna migrazione applicata.
+- [ ] Implementazione 3A: solo dopo nuova autorizzazione esplicita.
