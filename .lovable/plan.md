@@ -1,50 +1,61 @@
-# Fase 3A — Passo 0: chiarimenti prima del test
+# Fase 3A — Passo 0: procedura aggiornata del test isolato
 
 Conferma: nessuna modifica eseguita. Repository, database, migrazioni e dati invariati.
 
-## 1. Reversibilità — procedura rivista (nessun effetto permanente)
+## 1. Procedura aggiornata
 
-La proposta precedente (crea schema → testa → rimuovi) avrebbe lasciato due voci nello storico delle migrazioni: "creazione probe" e "rimozione probe". **Non sono necessarie.** Sostituisco la procedura con una migliore:
+Invariata nella forma: un unico blocco eseguito tramite lo strumento migrazioni, che crea gli oggetti di prova nello schema `phase0_probe`, esegue i casi e termina **sempre** con un errore intenzionale che contiene il rapporto. Tutto viene annullato; tabelle finanziarie, policy e privilegi esistenti non vengono toccati. Dopo, verifica in sola lettura che lo schema non esista e che lo storico migrazioni sia invariato (6 voci).
 
-- Un'unica esecuzione tramite lo strumento migrazioni, il cui SQL è un solo blocco che crea gli oggetti di prova, esegue tutti i casi, raccoglie i valori osservati e **termina sempre con un errore intenzionale** contenente i risultati (stesso schema già usato nei test SQL: "ALL_PASSED"/"RESULT: …").
-- PostgreSQL esegue la migrazione in una transazione: l'errore finale annulla tutto (schema, tabelle, funzioni, trigger, policy, grant, righe fittizie). Lo strumento dichiara che, in caso di errore, file e voce di storico vengono rimossi e nulla viene applicato.
-- Effetti permanenti attesi: nessuno. Verifica dopo il test, in sola lettura: assenza dello schema `phase0_probe` e di funzioni con quel nome; storico delle migrazioni ancora a 6 voci (0000–0005); nessun nuovo file in `drizzle/migrations`.
-- Lo schema finanziario esistente (`transactions`, `accounts`, ecc.) non viene toccato né letto in scrittura.
-- Rischio residuo: se lo strumento non riportasse il testo dell'errore, i valori osservati andrebbero persi (ma senza effetti sul database); in tal caso lo dichiarerei e non dedurrei nulla.
+Modifica rispetto alla versione precedente: **non si usa più `probe_log` come prova dei rifiuti** e la policy non viene mai disattivata (vedi sotto).
 
-## 2. Oggetti creati (solo dentro la transazione annullata)
+## 2. Raccolta delle evidenze
 
-- Schema `phase0_probe`.
-- Tabella `probe_rows(id, kind text check in ('ordinary','transfer'), note)` con RLS attiva; grant SELECT/INSERT/UPDATE a `authenticated`; policy: `authenticated` vede/modifica solo righe `ordinary`.
-- Tabella `probe_log(caso, current_user, session_user, esito)`.
-- Tabella `probe_members(user_id)` che simula l'appartenenza allo spazio.
-- Funzione trigger **SECURITY INVOKER** `probe_guard()`: registra `current_user`; rifiuta righe `transfer` se `current_user` ∈ {authenticated, anon, service_role}.
-- Funzione **SECURITY DEFINER** `probe_rpc_update(id)` (proprietario `postgres`, `search_path` fisso): verifica che `auth.uid()` sia in `probe_members`, poi modifica una riga `transfer`. EXECUTE revocato a public/anon, concesso a `authenticated`.
-- Due righe fittizie: una `ordinary`, una `transfer`. Nessun dato finanziario.
+Hai ragione: ogni caso gira in un sotto-blocco `BEGIN … EXCEPTION`, che PostgreSQL implementa come savepoint. Se il trigger rifiuta, tutto ciò che è stato scritto in quel sotto-blocco — compresa un'eventuale riga di log — viene annullato. Il log non sopravvive.
 
-## 3. I quattro casi
+Le evidenze vengono quindi raccolte così:
+- **Operazione rifiutata dal trigger:** il trigger solleva un errore con codice dedicato `P0901` e messaggio `PROBE_GUARD current_user=<valore> session_user=<valore>`. Il gestore del sotto-blocco legge `SQLSTATE` e `SQLERRM` e li accoda a una variabile di testo del blocco esterno. Le variabili PL/pgSQL non sono soggette al rollback del savepoint, quindi l'evidenza sopravvive.
+- **Operazione consentita:** il trigger scrive `current_user` nella colonna `seen_by` della riga stessa; il blocco rilegge la riga e il numero di righe modificate (`ROW_COUNT`) e li accoda al rapporto.
+- **Rifiuto della RPC (utente non autorizzato):** codice dedicato `P0902`, messaggio `PROBE_RPC_DENIED uid=<valore>`.
+- **Permesso negato (anonimo senza EXECUTE):** codice standard `42501`.
+- **Errore imprevisto:** qualunque altro `SQLSTATE`, o un codice atteso in un caso sbagliato, viene marcato `UNEXPECTED` con il testo completo; il caso risulta fallito.
+- **Risultato finale:** errore intenzionale `PROBE_RESULT: <riga per caso: caso | ruolo | esito | sqlstate | current_user osservato | righe>`. Questo testo è l'unica evidenza; se lo strumento non lo riportasse, lo dichiarerò e il test risulterà non eseguito.
 
-Il ruolo si imposta con `SET LOCAL ROLE` (consentito: `postgres` è membro di `authenticated` e `service_role`, verificato) e l'identità utente con `request.jwt.claims` fittizi, come fa l'API dopo l'autenticazione. Ogni caso gira in un sotto-blocco che cattura l'errore.
+## 3. Distinzione tra RLS e trigger, senza modificare policy
 
-| Caso | Ruolo usato | `current_user` atteso nel trigger | Esito atteso | Come si verifica |
-|---|---|---|---|---|
-| A. UPDATE diretto riga `transfer` | authenticated | authenticated | Rifiutato (prima dalla RLS: 0 righe; poi, con policy disattivata nel sottocaso A2, dal trigger) | Conteggio righe modificate + errore catturato + riga in `probe_log` |
-| A1. UPDATE diretto riga `ordinary` | authenticated | authenticated | Consentito | Valore modificato riletto |
-| B. RPC autorizzata | authenticated (utente in `probe_members`) | postgres | Consentito | Riga `transfer` modificata riletta; `probe_log` registra `postgres` |
-| C. UPDATE diretto riga `transfer` | service_role | service_role | Rifiutato dal trigger (la RLS è aggirata) | Errore catturato + log |
-| D. RPC da utente non membro | authenticated (sub non presente) | — (il trigger non deve scattare) | Rifiutato dalla RPC | Errore catturato, riga invariata |
-| D2. RPC da anonimo | anon | — | Permesso negato (nessun EXECUTE) | Errore catturato |
+Due tabelle di prova separate, entrambe solo nello schema `phase0_probe`:
+- `probe_rls`: RLS attiva con policy "solo righe `ordinary`" per `authenticated`, **nessun trigger**. Verifica solo la policy.
+- `probe_trg`: RLS attiva con policy permissiva (tutte le righe) per `authenticated`, **con trigger INVOKER**. Verifica solo il trigger, perché la RLS qui non blocca nulla.
 
-I valori in colonna "atteso" sono teorici; il rapporto riporterà solo i valori effettivamente letti da `probe_log`. La prova che la protezione non blocca la RPC è il caso B: stessa riga, stesso trigger attivo, modifica riuscita.
+Nessuna policy viene disattivata o modificata dopo la creazione; nessuna policy finanziaria è coinvolta.
 
-Limite dichiarato: il test simula la sessione con `SET ROLE` + claims, non passa dall'API reale. Il percorso API produce lo stesso ruolo finale, ma questa equivalenza va confermata dopo l'implementazione con un test dal browser con account di prova.
+Come si distingue l'origine del rifiuto:
+- RLS su UPDATE: non genera errore, la riga non è visibile → `ROW_COUNT = 0`. Su INSERT/cambio verso `transfer` → errore `42501` "row-level security".
+- Trigger: errore `P0901` con il `current_user` osservato.
+- Un esito su `probe_trg` può provenire solo dal trigger; uno su `probe_rls` solo dalla policy.
 
-## 4. Requisiti del test
+Casi:
 
-- Creazione schema, funzioni, trigger, policy, grant: sì, ma solo dentro la transazione annullata.
-- Modifica dei privilegi esistenti: no.
-- Sessione autenticata dal browser/API: no per il Passo 0.
-- Modifiche allo storico migrazioni: no (salvo malfunzionamento dello strumento, verificato dopo).
+| Caso | Tabella | Ruolo | Esito atteso (teorico) |
+|---|---|---|---|
+| R1 UPDATE riga ordinary | probe_rls | authenticated | 1 riga modificata |
+| R2 UPDATE riga transfer | probe_rls | authenticated | 0 righe |
+| R3 INSERT riga transfer | probe_rls | authenticated | 42501 |
+| T1 UPDATE riga ordinary | probe_trg | authenticated | 1 riga, `seen_by` = authenticated |
+| T2 UPDATE riga transfer | probe_trg | authenticated | P0901, current_user = authenticated |
+| T3 INSERT riga transfer | probe_trg | authenticated | P0901 |
+| T4 UPDATE riga transfer | probe_trg | service_role | P0901, current_user = service_role |
+| T5 RPC autorizzata su riga transfer | probe_trg | authenticated (membro) | 1 riga, `seen_by` = postgres |
+| T6 RPC utente non membro | probe_trg | authenticated (non membro) | P0902, riga invariata |
+| T7 RPC da anonimo | — | anon | 42501 |
+
+T5 dimostra che il trigger non blocca la RPC autorizzata: stessa tabella, stesso trigger, riga modificata e `current_user` osservato.
+
+## 4. Limiti tecnici
+
+- Sessioni simulate con `SET LOCAL ROLE` e claims fittizi, non tramite l'API reale; l'equivalenza va confermata dopo l'implementazione con un test dal browser.
+- Il test dipende dalla capacità dello strumento migrazioni di restituire il messaggio d'errore e di annullare file e storico; entrambe le cose saranno verificate subito dopo.
+- Il trigger reale sarà applicato a `transactions`, non a una tabella di prova: il risultato prova il meccanismo, non l'implementazione finale.
 
 ## 5. Conferma
-Nessuna modifica è stata eseguita. Approvando autorizzi solo l'esecuzione del test annullato descritto sopra e le successive verifiche in sola lettura; poi mi fermo con il rapporto.
+
+Nessuna modifica eseguita. Approvando autorizzi solo l'esecuzione di questo test annullato e le verifiche in sola lettura successive; poi mi fermo con il rapporto.
