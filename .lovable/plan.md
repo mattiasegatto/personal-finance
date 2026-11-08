@@ -213,9 +213,19 @@ AS $function$
 declare tid uuid;
 begin
   if coalesce(new.operation_type, old.operation_type) <> 'transfer' then return null; end if;
+  if tg_op = 'DELETE' then
+    select transfer_id into tid from public.transfer_transaction_links
+    where transaction_id = old.id;
+    if tid is not null then perform public.validate_transfer(tid); end if;
+    return null;
+  end if;
+  -- INSERT o UPDATE di una gamba transfer: il collegamento deve esistere al commit
   select transfer_id into tid from public.transfer_transaction_links
-  where transaction_id = coalesce(new.id, old.id);
-  if tid is not null then perform public.validate_transfer(tid); end if;
+  where transaction_id = new.id;
+  if tid is null then
+    raise exception 'Una gamba di trasferimento deve essere collegata a un trasferimento.';
+  end if;
+  perform public.validate_transfer(tid);
   return null;
 end $function$;
 
@@ -228,7 +238,7 @@ CREATE CONSTRAINT TRIGGER links_validate
   DEFERRABLE INITIALLY DEFERRED
   FOR EACH ROW EXECUTE FUNCTION public.validate_transfer_link_trigger();
 CREATE CONSTRAINT TRIGGER legs_validate
-  AFTER UPDATE OR DELETE ON public.transactions
+  AFTER INSERT OR UPDATE OR DELETE ON public.transactions
   DEFERRABLE INITIALLY DEFERRED
   FOR EACH ROW EXECUTE FUNCTION public.validate_transfer_leg_trigger();
 
