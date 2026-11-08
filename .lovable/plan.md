@@ -14,7 +14,11 @@ Nessuna migrazione applicata, nessun oggetto creato, nessun file del repository 
 - spazio di tipo **personale**;
 - coerenza di annullamento: testata attiva ⇒ entrambe le gambe attive; testata annullata ⇒ entrambe annullate.
 
-**Copertura delle modifiche alle gambe.** Nella versione precedente il validatore scattava solo su testata e collegamenti. Ora un terzo constraint trigger differito scatta anche su `transactions` (UPDATE/DELETE) per le righe `transfer`: qualunque modifica a una gamba — anche se riuscisse a superare la guardia — viene rivalidata al commit e annullata se lascia incoerenze. Le tre superfici (testata, collegamenti, gambe) sono quindi tutte coperte.
+**Copertura delle scritture sulle gambe.** Un terzo constraint trigger differito scatta su `transactions` per **INSERT, UPDATE e DELETE** delle righe `transfer`. Due garanzie distinte:
+- una gamba `transfer` **senza collegamento** (inserita direttamente, anche con la variabile impostata) viene rifiutata al commit: il trigger non trova il collegamento e solleva un errore;
+- una gamba collegata ma **incoerente** (importo, data, conto, direzione, descrizione, stato di annullamento diversi dalla testata) viene rifiutata al commit dal validatore completo.
+
+In `create_transfer` le gambe sono inserite prima dei collegamenti, ma il trigger è differito al commit: a quel punto i collegamenti esistono e la validazione passa. Le tre superfici (testata, collegamenti, gambe) sono coperte su tutte e tre le operazioni.
 
 ## 2. Variabile `app.transfer_rpc` — analisi concreta
 
@@ -209,9 +213,19 @@ AS $function$
 declare tid uuid;
 begin
   if coalesce(new.operation_type, old.operation_type) <> 'transfer' then return null; end if;
+  if tg_op = 'DELETE' then
+    select transfer_id into tid from public.transfer_transaction_links
+    where transaction_id = old.id;
+    if tid is not null then perform public.validate_transfer(tid); end if;
+    return null;
+  end if;
+  -- INSERT o UPDATE di una gamba transfer: il collegamento deve esistere al commit
   select transfer_id into tid from public.transfer_transaction_links
-  where transaction_id = coalesce(new.id, old.id);
-  if tid is not null then perform public.validate_transfer(tid); end if;
+  where transaction_id = new.id;
+  if tid is null then
+    raise exception 'Una gamba di trasferimento deve essere collegata a un trasferimento.';
+  end if;
+  perform public.validate_transfer(tid);
   return null;
 end $function$;
 
@@ -224,7 +238,7 @@ CREATE CONSTRAINT TRIGGER links_validate
   DEFERRABLE INITIALLY DEFERRED
   FOR EACH ROW EXECUTE FUNCTION public.validate_transfer_link_trigger();
 CREATE CONSTRAINT TRIGGER legs_validate
-  AFTER UPDATE OR DELETE ON public.transactions
+  AFTER INSERT OR UPDATE OR DELETE ON public.transactions
   DEFERRABLE INITIALLY DEFERRED
   FOR EACH ROW EXECUTE FUNCTION public.validate_transfer_leg_trigger();
 
@@ -417,27 +431,74 @@ REVOKE EXECUTE ON FUNCTION public.guard_account() FROM PUBLIC, anon, authenticat
 
 ## 7. Criticità risolte rispetto alla versione precedente
 
-1. Il validatore ora controlla davvero tutti gli invarianti: riferimenti valorizzati e distinti, descrizione, appartenenza dei conti allo spazio, valuta identica, spazio personale, coerenza di annullamento.
-2. Le modifiche alle gambe sono coperte da un terzo constraint trigger differito su `transactions`: nessuna superficie scoperta.
+1. **Gap INSERT sulle gambe (segnalato da te):** `legs_validate` ora scatta su INSERT, UPDATE e DELETE. Una gamba `transfer` inserita senza collegamento viene rifiutata al commit anche con la variabile impostata; una gamba collegata ma incoerente viene rifiutata dal validatore completo.
+2. Il validatore controlla tutti gli invarianti: riferimenti valorizzati e distinti, descrizione, appartenenza dei conti allo spazio, valuta identica, spazio personale, coerenza di annullamento.
 3. `guard_transfers` blocca ogni UPDATE diretto, non solo i riferimenti alle gambe.
 4. Privilegi: revocata l'esecuzione pubblica di tutte le funzioni interne; EXECUTE solo sulle tre RPC e solo per `authenticated`.
 5. `guard_account` verificata nel database e lasciata invariata: comportamento documentato, decisione D1 sospesa.
 
-## 8. Garanzie effettivamente implementate (e come)
+## 8. Cosa è garantito dal database e cosa dipende dal percorso applicativo
 
-- **Due gambe coerenti, sempre:** vincoli (PK globale, UNIQUE ruolo, FK RESTRICT) + guardie (scrittura solo via RPC) + validatore differito al commit su testata, collegamenti e gambe.
-- **Nessuna scrittura diretta:** RLS per i ruoli normali; trigger per ogni ruolo incluso `service_role`; validatore come rete finale anche con variabile impostata.
-- **Autorizzazione esplicita:** ogni RPC verifica `auth.uid()` e `has_space_role` prima di aprire il percorso protetto.
-- **Ordinari intatti:** tutte le validazioni esistenti preservate; `operation_type` immutabile; categoria obbligatoria per gli ordinari.
-- **Storicità:** nessuna cancellazione fisica; annullamento logico di testata e gambe; collegamenti conservati.
+**Garantito a livello database (qualunque client, qualunque ruolo, anche con la variabile impostata):**
+- una gamba `transfer` non può esistere senza collegamento a un trasferimento (rifiutata al commit);
+- un trasferimento non può restare incompleto o disallineato (una gamba sola, ruoli duplicati, importo/data/conto/descrizione/direzione diversi, annullamento parziale): il commit fallisce;
+- un movimento non può appartenere a due trasferimenti (PK su `transaction_id`); uno stesso trasferimento non può avere due gambe con lo stesso ruolo (UNIQUE);
+- nessuna cancellazione fisica di testate (`guard_transfers`) né scrittura diretta su collegamenti (`guard_transfer_links`);
+- le gambe non si creano né si modificano fuori dalla RPC (`guard_transaction` + variabile); `operation_type` è immutabile.
 
-## 9. Test necessari dopo l'applicazione
+**Dipende dal percorso applicativo (le RPC), non dal database in sé:**
+- la verifica di identità e appartenenza (`auth.uid()` + `has_space_role`): è dentro le RPC; chi scrivesse con accesso SQL diretto la salterebbe, ma resterebbe vincolato dalle garanzie strutturali sopra;
+- le regole di comodo (conti attivi in creazione, blocco importo con conti archiviati): applicate nelle RPC; il database garantisce comunque la coerenza strutturale se fossero aggirate.
 
-**Connessione reale dell'app (account di prova):** creazione (due movimenti, saldi, coerenza); totali entrate/uscite invariati; modifica importo atomica; annullamento con saldi ricalcolati e collegamenti storici; modifica diretta di una gamba rifiutata; scrittura diretta su testata/collegamenti negata; errori (stesso conto, valute diverse, conto archiviato, importo ≤ 0, non membro, anonimo); persistenza dopo logout/login.
+**Trigger effettivi dopo la migrazione (tutti verificabili con una query di sola lettura):**
 
-**Livello database (test annullato stile Passo 0):** `service_role` in scrittura diretta su gamba/testata/collegamenti; trasferimento con una gamba sola o disallineata rifiutato al commit; conto archiviato: descrizione/data consentite, importo rifiutato, annullamento consentito; revoche EXECUTE verificate.
+| Tabella | Trigger | Eventi | Ruolo |
+|---|---|---|---|
+| transactions | transactions_guard | BEFORE INSERT/UPDATE | guardia esistente estesa |
+| transactions | transactions_log | AFTER INSERT/UPDATE | audit esistente |
+| transactions | legs_validate | AFTER INSERT/UPDATE/DELETE, differito | coerenza gambe |
+| transfers | transfers_guard | BEFORE UPDATE | guardia testata |
+| transfers | transfers_guard_delete | BEFORE DELETE | no cancellazione fisica |
+| transfers | transfers_touch | BEFORE UPDATE | updated_at |
+| transfers | transfers_validate | AFTER INSERT/UPDATE, differito | coerenza testata |
+| transfer_transaction_links | links_guard | BEFORE INSERT/UPDATE/DELETE | scrittura solo via RPC |
+| transfer_transaction_links | links_validate | AFTER INSERT/UPDATE/DELETE, differito | coerenza collegamenti |
 
-**Automatici:** helper totali che esclude i trasferimenti; i 18 test esistenti devono restare verdi.
+## 9. Matrice dei casi di test e esito atteso
+
+**A. Connessione reale dell'app (account di prova, ruolo `authenticated`):**
+
+| # | Caso | Esito atteso |
+|---|---|---|
+| A1 | Creazione via RPC | Esattamente due movimenti (outflow/inflow), saldi aggiornati, testata e collegamenti coerenti |
+| A2 | Totali entrate/uscite pagina Movimenti | Invariati dai trasferimenti; saldi dei conti aggiornati |
+| A3 | Modifica importo via RPC | Entrambe le gambe aggiornate atomicamente |
+| A4 | Annullamento via RPC | Gambe eliminate logicamente, saldi ricalcolati, collegamenti storici conservati |
+| A5 | UPDATE diretto di una gamba dal client | Rifiutato da `guard_transaction` (variabile assente) |
+| A6 | INSERT diretto di una gamba `transfer` dal client | Rifiutato da `guard_transaction` |
+| A7 | INSERT/UPDATE/DELETE diretto su testata o collegamenti dal client | Negato (RLS: nessuna policy di scrittura) |
+| A8 | Errori: stesso conto, valute diverse, conto archiviato, importo ≤ 0 | Rifiutati dalla RPC con messaggio dedicato |
+| A9 | RPC da utente non membro / anonimo | Rifiutato (identità/appartenenza; EXECUTE revocato ad anon) |
+| A10 | Logout e nuovo accesso | Dati persistiti e coerenti |
+
+**B. Livello database (test annullato stile Passo 0, con variabile impostata e ruolo privilegiato):**
+
+| # | Caso | Esito atteso |
+|---|---|---|
+| B1 | INSERT gamba `transfer` senza collegamento, variabile ON | Rifiutato al commit da `legs_validate` |
+| B2 | INSERT gamba con collegamento ma importo diverso dalla testata | Rifiutato al commit da `validate_transfer` |
+| B3 | UPDATE diretto di una gamba (importo) con variabile ON | Rifiutato al commit (disallineamento rilevato) |
+| B4 | DELETE fisico di una gamba | Rifiutato al commit (gamba mancante) |
+| B5 | Testata con una sola gamba | Rifiutato al commit (serve una source e una destination) |
+| B6 | UPDATE diretto della testata con variabile OFF (service_role) | Rifiutato da `guard_transfers` |
+| B7 | Scrittura diretta sui collegamenti con variabile OFF | Rifiutato da `guard_transfer_links` |
+| B8 | Conto archiviato: modifica descrizione/data via RPC | Consentita |
+| B9 | Conto archiviato: modifica importo via RPC | Rifiutata |
+| B10 | Conto archiviato: annullamento via RPC | Consentito |
+| B11 | Revoche EXECUTE su funzioni interne | Verificate con query di sola lettura |
+| B12 | Elenco trigger effettivi | Verificato contro la tabella della sezione 8 |
+
+**C. Automatici (Vitest):** helper dei totali che esclude i trasferimenti; i 18 test esistenti devono restare verdi.
 
 ## 10. Decisioni ancora aperte
 
