@@ -431,11 +431,38 @@ REVOKE EXECUTE ON FUNCTION public.guard_account() FROM PUBLIC, anon, authenticat
 
 ## 7. Criticità risolte rispetto alla versione precedente
 
-1. Il validatore ora controlla davvero tutti gli invarianti: riferimenti valorizzati e distinti, descrizione, appartenenza dei conti allo spazio, valuta identica, spazio personale, coerenza di annullamento.
-2. Le modifiche alle gambe sono coperte da un terzo constraint trigger differito su `transactions`: nessuna superficie scoperta.
+1. **Gap INSERT sulle gambe (segnalato da te):** `legs_validate` ora scatta su INSERT, UPDATE e DELETE. Una gamba `transfer` inserita senza collegamento viene rifiutata al commit anche con la variabile impostata; una gamba collegata ma incoerente viene rifiutata dal validatore completo.
+2. Il validatore controlla tutti gli invarianti: riferimenti valorizzati e distinti, descrizione, appartenenza dei conti allo spazio, valuta identica, spazio personale, coerenza di annullamento.
 3. `guard_transfers` blocca ogni UPDATE diretto, non solo i riferimenti alle gambe.
 4. Privilegi: revocata l'esecuzione pubblica di tutte le funzioni interne; EXECUTE solo sulle tre RPC e solo per `authenticated`.
 5. `guard_account` verificata nel database e lasciata invariata: comportamento documentato, decisione D1 sospesa.
+
+## 8. Cosa è garantito dal database e cosa dipende dal percorso applicativo
+
+**Garantito a livello database (qualunque client, qualunque ruolo, anche con la variabile impostata):**
+- una gamba `transfer` non può esistere senza collegamento a un trasferimento (rifiutata al commit);
+- un trasferimento non può restare incompleto o disallineato (una gamba sola, ruoli duplicati, importo/data/conto/descrizione/direzione diversi, annullamento parziale): il commit fallisce;
+- un movimento non può appartenere a due trasferimenti (PK su `transaction_id`); uno stesso trasferimento non può avere due gambe con lo stesso ruolo (UNIQUE);
+- nessuna cancellazione fisica di testate (`guard_transfers`) né scrittura diretta su collegamenti (`guard_transfer_links`);
+- le gambe non si creano né si modificano fuori dalla RPC (`guard_transaction` + variabile); `operation_type` è immutabile.
+
+**Dipende dal percorso applicativo (le RPC), non dal database in sé:**
+- la verifica di identità e appartenenza (`auth.uid()` + `has_space_role`): è dentro le RPC; chi scrivesse con accesso SQL diretto la salterebbe, ma resterebbe vincolato dalle garanzie strutturali sopra;
+- le regole di comodo (conti attivi in creazione, blocco importo con conti archiviati): applicate nelle RPC; il database garantisce comunque la coerenza strutturale se fossero aggirate.
+
+**Trigger effettivi dopo la migrazione (tutti verificabili con una query di sola lettura):**
+
+| Tabella | Trigger | Eventi | Ruolo |
+|---|---|---|---|
+| transactions | transactions_guard | BEFORE INSERT/UPDATE | guardia esistente estesa |
+| transactions | transactions_log | AFTER INSERT/UPDATE | audit esistente |
+| transactions | legs_validate | AFTER INSERT/UPDATE/DELETE, differito | coerenza gambe |
+| transfers | transfers_guard | BEFORE UPDATE | guardia testata |
+| transfers | transfers_guard_delete | BEFORE DELETE | no cancellazione fisica |
+| transfers | transfers_touch | BEFORE UPDATE | updated_at |
+| transfers | transfers_validate | AFTER INSERT/UPDATE, differito | coerenza testata |
+| transfer_transaction_links | links_guard | BEFORE INSERT/UPDATE/DELETE | scrittura solo via RPC |
+| transfer_transaction_links | links_validate | AFTER INSERT/UPDATE/DELETE, differito | coerenza collegamenti |
 
 ## 8. Garanzie effettivamente implementate (e come)
 
