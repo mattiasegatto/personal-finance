@@ -14,7 +14,11 @@ Nessuna migrazione applicata, nessun oggetto creato, nessun file del repository 
 - spazio di tipo **personale**;
 - coerenza di annullamento: testata attiva ⇒ entrambe le gambe attive; testata annullata ⇒ entrambe annullate.
 
-**Copertura delle modifiche alle gambe.** Nella versione precedente il validatore scattava solo su testata e collegamenti. Ora un terzo constraint trigger differito scatta anche su `transactions` (UPDATE/DELETE) per le righe `transfer`: qualunque modifica a una gamba — anche se riuscisse a superare la guardia — viene rivalidata al commit e annullata se lascia incoerenze. Le tre superfici (testata, collegamenti, gambe) sono quindi tutte coperte.
+**Copertura delle scritture sulle gambe.** Un terzo constraint trigger differito scatta su `transactions` per **INSERT, UPDATE e DELETE** delle righe `transfer`. Due garanzie distinte:
+- una gamba `transfer` **senza collegamento** (inserita direttamente, anche con la variabile impostata) viene rifiutata al commit: il trigger non trova il collegamento e solleva un errore;
+- una gamba collegata ma **incoerente** (importo, data, conto, direzione, descrizione, stato di annullamento diversi dalla testata) viene rifiutata al commit dal validatore completo.
+
+In `create_transfer` le gambe sono inserite prima dei collegamenti, ma il trigger è differito al commit: a quel punto i collegamenti esistono e la validazione passa. Le tre superfici (testata, collegamenti, gambe) sono coperte su tutte e tre le operazioni.
 
 ## 2. Variabile `app.transfer_rpc` — analisi concreta
 
