@@ -464,14 +464,6 @@ REVOKE EXECUTE ON FUNCTION public.guard_account() FROM PUBLIC, anon, authenticat
 | transfer_transaction_links | links_guard | BEFORE INSERT/UPDATE/DELETE | scrittura solo via RPC |
 | transfer_transaction_links | links_validate | AFTER INSERT/UPDATE/DELETE, differito | coerenza collegamenti |
 
-## 8. Garanzie effettivamente implementate (e come)
-
-- **Due gambe coerenti, sempre:** vincoli (PK globale, UNIQUE ruolo, FK RESTRICT) + guardie (scrittura solo via RPC) + validatore differito al commit su testata, collegamenti e gambe.
-- **Nessuna scrittura diretta:** RLS per i ruoli normali; trigger per ogni ruolo incluso `service_role`; validatore come rete finale anche con variabile impostata.
-- **Autorizzazione esplicita:** ogni RPC verifica `auth.uid()` e `has_space_role` prima di aprire il percorso protetto.
-- **Ordinari intatti:** tutte le validazioni esistenti preservate; `operation_type` immutabile; categoria obbligatoria per gli ordinari.
-- **Storicità:** nessuna cancellazione fisica; annullamento logico di testata e gambe; collegamenti conservati.
-
 ## 9. Matrice dei casi di test e esito atteso
 
 **A. Connessione reale dell'app (account di prova, ruolo `authenticated`):**
