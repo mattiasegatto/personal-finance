@@ -472,13 +472,41 @@ REVOKE EXECUTE ON FUNCTION public.guard_account() FROM PUBLIC, anon, authenticat
 - **Ordinari intatti:** tutte le validazioni esistenti preservate; `operation_type` immutabile; categoria obbligatoria per gli ordinari.
 - **Storicità:** nessuna cancellazione fisica; annullamento logico di testata e gambe; collegamenti conservati.
 
-## 9. Test necessari dopo l'applicazione
+## 9. Matrice dei casi di test e esito atteso
 
-**Connessione reale dell'app (account di prova):** creazione (due movimenti, saldi, coerenza); totali entrate/uscite invariati; modifica importo atomica; annullamento con saldi ricalcolati e collegamenti storici; modifica diretta di una gamba rifiutata; scrittura diretta su testata/collegamenti negata; errori (stesso conto, valute diverse, conto archiviato, importo ≤ 0, non membro, anonimo); persistenza dopo logout/login.
+**A. Connessione reale dell'app (account di prova, ruolo `authenticated`):**
 
-**Livello database (test annullato stile Passo 0):** `service_role` in scrittura diretta su gamba/testata/collegamenti; trasferimento con una gamba sola o disallineata rifiutato al commit; conto archiviato: descrizione/data consentite, importo rifiutato, annullamento consentito; revoche EXECUTE verificate.
+| # | Caso | Esito atteso |
+|---|---|---|
+| A1 | Creazione via RPC | Esattamente due movimenti (outflow/inflow), saldi aggiornati, testata e collegamenti coerenti |
+| A2 | Totali entrate/uscite pagina Movimenti | Invariati dai trasferimenti; saldi dei conti aggiornati |
+| A3 | Modifica importo via RPC | Entrambe le gambe aggiornate atomicamente |
+| A4 | Annullamento via RPC | Gambe eliminate logicamente, saldi ricalcolati, collegamenti storici conservati |
+| A5 | UPDATE diretto di una gamba dal client | Rifiutato da `guard_transaction` (variabile assente) |
+| A6 | INSERT diretto di una gamba `transfer` dal client | Rifiutato da `guard_transaction` |
+| A7 | INSERT/UPDATE/DELETE diretto su testata o collegamenti dal client | Negato (RLS: nessuna policy di scrittura) |
+| A8 | Errori: stesso conto, valute diverse, conto archiviato, importo ≤ 0 | Rifiutati dalla RPC con messaggio dedicato |
+| A9 | RPC da utente non membro / anonimo | Rifiutato (identità/appartenenza; EXECUTE revocato ad anon) |
+| A10 | Logout e nuovo accesso | Dati persistiti e coerenti |
 
-**Automatici:** helper totali che esclude i trasferimenti; i 18 test esistenti devono restare verdi.
+**B. Livello database (test annullato stile Passo 0, con variabile impostata e ruolo privilegiato):**
+
+| # | Caso | Esito atteso |
+|---|---|---|
+| B1 | INSERT gamba `transfer` senza collegamento, variabile ON | Rifiutato al commit da `legs_validate` |
+| B2 | INSERT gamba con collegamento ma importo diverso dalla testata | Rifiutato al commit da `validate_transfer` |
+| B3 | UPDATE diretto di una gamba (importo) con variabile ON | Rifiutato al commit (disallineamento rilevato) |
+| B4 | DELETE fisico di una gamba | Rifiutato al commit (gamba mancante) |
+| B5 | Testata con una sola gamba | Rifiutato al commit (serve una source e una destination) |
+| B6 | UPDATE diretto della testata con variabile OFF (service_role) | Rifiutato da `guard_transfers` |
+| B7 | Scrittura diretta sui collegamenti con variabile OFF | Rifiutato da `guard_transfer_links` |
+| B8 | Conto archiviato: modifica descrizione/data via RPC | Consentita |
+| B9 | Conto archiviato: modifica importo via RPC | Rifiutata |
+| B10 | Conto archiviato: annullamento via RPC | Consentito |
+| B11 | Revoche EXECUTE su funzioni interne | Verificate con query di sola lettura |
+| B12 | Elenco trigger effettivi | Verificato contro la tabella della sezione 8 |
+
+**C. Automatici (Vitest):** helper dei totali che esclude i trasferimenti; i 18 test esistenti devono restare verdi.
 
 ## 10. Decisioni ancora aperte
 
