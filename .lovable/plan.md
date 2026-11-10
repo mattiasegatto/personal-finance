@@ -32,7 +32,7 @@ In `create_transfer` le gambe sono inserite prima dei collegamenti, ma il trigge
 
 `guard_transfers()` ora rifiuta **ogni** UPDATE diretto (importo, conti, data, descrizione, annullamento, collegamenti) quando la variabile non è impostata — non più solo i cambi dei riferimenti alle gambe. Dentro la RPC restano immutabili spazio e `created_by`, e una testata annullata non è più modificabile. La cancellazione fisica resta vietata. Il validatore differito copre comunque qualunque incoerenza residua.
 
-## 4. Archiviazione dei conti — verifica effettiva (decisione D1 sospesa)
+## 4. Archiviazione dei conti — verifica effettiva (D1 decisa: archiviazione consentita)
 
 Ho letto la definizione **attualmente presente nel database** di `guard_account()`: non contiene alcun riferimento ai trasferimenti. L'archiviazione è oggi regolata solo dal vincolo del saldo zero.
 
@@ -71,8 +71,8 @@ CREATE TABLE public.transfers (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
-GRANT SELECT ON public.transfers TO authenticated;
-GRANT ALL ON public.transfers TO service_role;
+REVOKE ALL ON public.transfers FROM PUBLIC, anon, authenticated, service_role;
+GRANT SELECT ON public.transfers TO authenticated, service_role;
 ALTER TABLE public.transfers ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "transfers: membri leggono" ON public.transfers
   FOR SELECT TO authenticated
@@ -86,8 +86,8 @@ CREATE TABLE public.transfer_transaction_links (
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (transfer_id, role)
 );
-GRANT SELECT ON public.transfer_transaction_links TO authenticated;
-GRANT ALL ON public.transfer_transaction_links TO service_role;
+REVOKE ALL ON public.transfer_transaction_links FROM PUBLIC, anon, authenticated, service_role;
+GRANT SELECT ON public.transfer_transaction_links TO authenticated, service_role;
 ALTER TABLE public.transfer_transaction_links ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "links: membri leggono" ON public.transfer_transaction_links
   FOR SELECT TO authenticated
@@ -285,7 +285,7 @@ begin
   return new;
 end $function$;
 
--- 9. guard_account: NESSUNA modifica (verificata la definizione attuale; decisione D1 sospesa)
+-- 9. guard_account: NESSUNA modifica (verificata la definizione attuale; D1 decisa: invariata)
 
 -- 10. RPC: creazione atomica
 CREATE OR REPLACE FUNCTION public.create_transfer(
@@ -427,6 +427,9 @@ REVOKE EXECUTE ON FUNCTION public.validate_transfer_link_trigger() FROM PUBLIC, 
 REVOKE EXECUTE ON FUNCTION public.validate_transfer_leg_trigger() FROM PUBLIC, anon, authenticated;
 REVOKE EXECUTE ON FUNCTION public.guard_transaction() FROM PUBLIC, anon, authenticated;
 REVOKE EXECUTE ON FUNCTION public.guard_account() FROM PUBLIC, anon, authenticated;
+
+-- D3: revoca TRUNCATE sulle tabelle finanziarie esistenti (nessun dato modificato)
+REVOKE TRUNCATE ON public.accounts, public.categories, public.transactions, public.transaction_revisions FROM PUBLIC, anon, authenticated;
 ```
 
 ## 7. Criticità risolte rispetto alla versione precedente
@@ -435,7 +438,7 @@ REVOKE EXECUTE ON FUNCTION public.guard_account() FROM PUBLIC, anon, authenticat
 2. Il validatore controlla tutti gli invarianti: riferimenti valorizzati e distinti, descrizione, appartenenza dei conti allo spazio, valuta identica, spazio personale, coerenza di annullamento.
 3. `guard_transfers` blocca ogni UPDATE diretto, non solo i riferimenti alle gambe.
 4. Privilegi: revocata l'esecuzione pubblica di tutte le funzioni interne; EXECUTE solo sulle tre RPC e solo per `authenticated`.
-5. `guard_account` verificata nel database e lasciata invariata: comportamento documentato, decisione D1 sospesa.
+5. `guard_account` verificata nel database e lasciata invariata: comportamento documentato, D1 decisa: invariata.
 
 ## 8. Cosa è garantito dal database e cosa dipende dal percorso applicativo
 
@@ -506,24 +509,42 @@ REVOKE EXECUTE ON FUNCTION public.guard_account() FROM PUBLIC, anon, authenticat
 - **D2:** RPC autorizzate + `app.transfer_rpc` + validatore differito. Ogni RPC verifica `auth.uid()` e ruolo owner/member prima di impostare la variabile; la variabile da sola non autorizza mai: il validatore differito ricontrolla sempre struttura, gambe e membership.
 - **D3:** `REVOKE TRUNCATE` da `authenticated` (e da `anon`/`PUBLIC`) su `transactions`, `accounts`, `categories`, `transaction_revisions`.
 
-## 11. Privilegi di `transfers` e `transfer_transaction_links`
+## 11. Privilegi e policy effettivi delle nuove tabelle
 
-- `REVOKE ALL ... FROM PUBLIC, anon, authenticated`.
-- `GRANT SELECT TO authenticated`, filtrato dalla RLS (`is_space_member`); nessuna scrittura diretta: scrivono solo le RPC SECURITY DEFINER.
-- `service_role`: `REVOKE ALL`, poi solo `SELECT`.
-- Trigger `BEFORE TRUNCATE` a livello di istruzione su entrambe le tabelle, sempre in errore, indipendente dalla RLS.
-- `EXECUTE` sulle RPC solo ad `authenticated`; revocato da `PUBLIC`/`anon`; funzioni interne senza EXECUTE per i client.
+| Tabella | PUBLIC / anon | authenticated | service_role | Policy RLS |
+|---|---|---|---|---|
+| transfers | nessuno | solo SELECT | solo SELECT | SELECT se `is_space_member(space_id, auth.uid())`; nessuna policy di scrittura |
+| transfer_transaction_links | nessuno | solo SELECT | solo SELECT | SELECT se membro dello spazio del trasferimento; nessuna policy di scrittura |
 
-## 12. Passi di implementazione (dopo approvazione del piano)
+- TRUNCATE non è concesso a nessun ruolo client: la protezione è la revoca dei privilegi. Nessun trigger BEFORE TRUNCATE viene usato come sostituto.
+- Le scritture avvengono solo dentro le RPC SECURITY DEFINER, che non dipendono dai privilegi dei client.
+- Dopo l'applicazione si verificano i privilegi effettivi con query di sola lettura (`has_table_privilege` per ogni ruolo e tabella) — test C.
 
-1. Scrivere il SQL della sezione 6 integrato con sezioni 10–11 come `drizzle/migrations/0006_transfers_phase3a.sql`, con voce `idx: 6` nel journal (timestamp maggiore dell'ultimo) e snapshot `0006` con `prevId` corretto. Nessuna applicazione remota, nessun dato.
-2. Non modificare 0000–0005 né i loro snapshot; verifica con checksum prima/dopo.
-3. Controlli: journal contiene 0006; `drizzle-kit check` locale; coerenza statica con enum, `is_space_member`/`has_space_role`, `log_transaction`, vista `account_balances`.
-4. Eseguire Vitest (18 attesi) e dichiarare esattamente i test eseguiti; i test SQL dei trasferimenti restano da eseguire dopo l'applicazione.
-5. Riepilogo unico: file modificati, test, rischi residui, istruzione di approvazione.
+## 12. RPC e controlli di autorizzazione
 
-## Rischi residui previsti
+| RPC | Concessa a | Controlli |
+|---|---|---|
+| `create_transfer(uuid, uuid, bigint, date, text)` | authenticated | `auth.uid()` non nullo; owner/member dello spazio personale di entrambi i conti; conti distinti, stessa valuta, non archiviati; importo > 0; testata, due gambe e due collegamenti nella stessa transazione |
+| `update_transfer(uuid, uuid, uuid, bigint, date, text)` | authenticated | identità e ruolo; trasferimento attivo; con conto archiviato solo data e descrizione (D1); gambe aggiornate insieme |
+| `delete_transfer(uuid)` | authenticated | identità e ruolo; annullamento logico di testata e gambe; collegamenti storici conservati; consentito anche con conto archiviato |
 
-- Matrice di test SQL (sezione 9) eseguibile solo dopo l'applicazione.
+Funzioni interne (validatore, trigger, guardie): EXECUTE revocato a PUBLIC, anon, authenticated. `app.transfer_rpc` è impostata solo dopo i controlli e non autorizza nulla da sola: il validatore differito ricontrolla tutti gli invarianti al commit su INSERT, UPDATE e DELETE delle gambe transfer.
+
+## 13. Matrice test A/B/C — stato
+
+- **A (comportamento via RPC, sezione 9):** da eseguire dopo l'applicazione.
+- **B (integrità e validatore, sezione 9):** da eseguire dopo l'applicazione. Il Passo 0 ha già superato 10/10 casi sul meccanismo di protezione in un test annullato, non sulle tabelle definitive.
+- **C (privilegi effettivi):** C1 anon senza privilegi sulle nuove tabelle; C2 authenticated solo SELECT, niente INSERT/UPDATE/DELETE/TRUNCATE; C3 service_role solo SELECT; C4 TRUNCATE assente per authenticated sulle quattro tabelle esistenti; C5 RPC solo ad authenticated, funzioni interne a nessun client — tutti da eseguire.
+- **Già eseguiti:** confronto storico migrazioni repository/database (6/6), lettura privilegi attuali, revisione statica del SQL, Passo 0, 18 test automatici dell'app.
+
+## 14. Passi dopo l'approvazione
+
+1. Salvare il SQL della sezione 6 come migrazione `0006` nel repository, con voce nel journal e snapshot coerente; nessuna applicazione al database, nessun dato.
+2. Verificare che 0000–0005 restino identici (checksum) e che il journal contenga 0006.
+3. Eseguire i 18 test automatici e riportare esattamente quelli eseguiti.
+
+## Problemi residui
+
+- Nessun problema di sicurezza o integrità noto nel SQL dopo questa revisione, ma A, B e C non sono eseguiti: la migrazione **non è dichiarata pronta per l'applicazione** finché non passano.
 - Il nuovo valore enum `transfer` non è annullabile con un semplice rollback.
 - Interfaccia dei trasferimenti esclusa da questo passo.
