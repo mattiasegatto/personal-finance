@@ -1,4 +1,4 @@
-# Fase 3A — Revisione finale SQL: integrità e protezioni
+# Fase 3A — Decisioni finali e migrazione versionata (non applicata)
 
 Nessuna migrazione applicata, nessun oggetto creato, nessun file del repository modificato. Solo analisi, SQL aggiornato, garanzie, test e decisioni aperte.
 
@@ -500,9 +500,30 @@ REVOKE EXECUTE ON FUNCTION public.guard_account() FROM PUBLIC, anon, authenticat
 
 **C. Automatici (Vitest):** helper dei totali che esclude i trasferimenti; i 18 test esistenti devono restare verdi.
 
-## 10. Decisioni ancora aperte
+## 10. Decisioni finali confermate
 
-- **D1 — Archiviazione con trasferimenti attivi:** la migrazione lascia `guard_account` invariata → archiviazione consentita con saldo zero, trasferimenti attivi gestibili solo in descrizione/data/annullamento. Se preferisci il blocco, lo aggiungo solo dopo tua decisione.
-- **D2 — Meccanismo `current_user` → variabile di transazione + validatore:** confermi la sostituzione rispetto al meccanismo del Passo 0.
+- **D1:** archiviazione del conto a saldo zero consentita anche con trasferimenti attivi. Restano modificabili solo data e descrizione (e l'annullamento); importo e conti sono bloccati. `guard_account` resta invariata.
+- **D2:** RPC autorizzate + `app.transfer_rpc` + validatore differito. Ogni RPC verifica `auth.uid()` e ruolo owner/member prima di impostare la variabile; la variabile da sola non autorizza mai: il validatore differito ricontrolla sempre struttura, gambe e membership.
+- **D3:** `REVOKE TRUNCATE` da `authenticated` (e da `anon`/`PUBLIC`) su `transactions`, `accounts`, `categories`, `transaction_revisions`.
 
-Nessuna modifica eseguita. Attendo la tua autorizzazione prima di applicare la migrazione.
+## 11. Privilegi di `transfers` e `transfer_transaction_links`
+
+- `REVOKE ALL ... FROM PUBLIC, anon, authenticated`.
+- `GRANT SELECT TO authenticated`, filtrato dalla RLS (`is_space_member`); nessuna scrittura diretta: scrivono solo le RPC SECURITY DEFINER.
+- `service_role`: `REVOKE ALL`, poi solo `SELECT`.
+- Trigger `BEFORE TRUNCATE` a livello di istruzione su entrambe le tabelle, sempre in errore, indipendente dalla RLS.
+- `EXECUTE` sulle RPC solo ad `authenticated`; revocato da `PUBLIC`/`anon`; funzioni interne senza EXECUTE per i client.
+
+## 12. Passi di implementazione (dopo approvazione del piano)
+
+1. Scrivere il SQL della sezione 6 integrato con sezioni 10–11 come `drizzle/migrations/0006_transfers_phase3a.sql`, con voce `idx: 6` nel journal (timestamp maggiore dell'ultimo) e snapshot `0006` con `prevId` corretto. Nessuna applicazione remota, nessun dato.
+2. Non modificare 0000–0005 né i loro snapshot; verifica con checksum prima/dopo.
+3. Controlli: journal contiene 0006; `drizzle-kit check` locale; coerenza statica con enum, `is_space_member`/`has_space_role`, `log_transaction`, vista `account_balances`.
+4. Eseguire Vitest (18 attesi) e dichiarare esattamente i test eseguiti; i test SQL dei trasferimenti restano da eseguire dopo l'applicazione.
+5. Riepilogo unico: file modificati, test, rischi residui, istruzione di approvazione.
+
+## Rischi residui previsti
+
+- Matrice di test SQL (sezione 9) eseguibile solo dopo l'applicazione.
+- Il nuovo valore enum `transfer` non è annullabile con un semplice rollback.
+- Interfaccia dei trasferimenti esclusa da questo passo.
