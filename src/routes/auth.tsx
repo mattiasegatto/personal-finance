@@ -1,7 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,10 +8,10 @@ import { Label } from "@/components/ui/label";
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Accedi — Fondo" },
-      { name: "description", content: "Accedi o registrati a Fondo, finanze personali e spese condivise." },
-      { property: "og:title", content: "Accedi — Fondo" },
-      { property: "og:description", content: "Accedi o registrati a Fondo." },
+      { title: "Accedi — Personal Finance" },
+      { name: "description", content: "Accedi o registrati a Personal Finance, finanze personali e spese condivise." },
+      { property: "og:title", content: "Accedi — Personal Finance" },
+      { property: "og:description", content: "Accedi o registrati a Personal Finance." },
     ],
   }),
   component: AuthPage,
@@ -63,7 +62,11 @@ function AuthPage() {
 
   const google = async () => {
     setMsg(null);
-    const r = await lovable.auth.signInWithOAuth("google", { redirect_uri: window.location.origin });
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: window.location.origin },
+    });
+    const r = { error };
     if (r.error) setMsg({ kind: "error", text: "Accesso con Google non riuscito." });
   };
 
@@ -74,7 +77,7 @@ function AuthPage() {
       <div className="w-full max-w-sm">
         <div className="mb-8 flex items-center justify-center gap-2">
           <div className="grid h-9 w-9 place-items-center rounded-lg bg-primary font-display text-primary-foreground">f</div>
-          <span className="font-display text-2xl">Fondo</span>
+          <span className="font-display text-2xl">Personal Finance</span>
         </div>
         <div className="rounded-2xl border bg-card p-6">
           <h1 className="text-2xl">{title}</h1>
