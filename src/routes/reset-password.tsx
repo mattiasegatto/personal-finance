@@ -8,10 +8,10 @@ import { Label } from "@/components/ui/label";
 export const Route = createFileRoute("/reset-password")({
   head: () => ({
     meta: [
-      { title: "Nuova password — Fondo" },
-      { name: "description", content: "Imposta una nuova password per il tuo account Fondo." },
-      { property: "og:title", content: "Nuova password — Fondo" },
-      { property: "og:description", content: "Imposta una nuova password per il tuo account Fondo." },
+      { title: "Nuova password — Personal Finance" },
+      { name: "description", content: "Imposta una nuova password per il tuo account Personal Finance." },
+      { property: "og:title", content: "Nuova password — Personal Finance" },
+      { property: "og:description", content: "Imposta una nuova password per il tuo account Personal Finance." },
     ],
   }),
   component: ResetPassword,
