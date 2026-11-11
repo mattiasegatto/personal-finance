@@ -29,25 +29,17 @@ jobs:
         run: supabase start
 
       - name: Rebuild database from migrations
-        run: supabase db reset --local
-
-      - name: Install PostgreSQL client
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes postgresql-client
+        run: supabase db reset
 
       - name: Run space and membership isolation tests
-        env:
-          DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
-        run: psql "$DB_URL" --set ON_ERROR_STOP=1 --file supabase/tests/rls_isolation.sql
+        run: |
+          docker exec -i supabase_db_fwpycxrnkzaguulxkcqt psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 < supabase/tests/rls_isolation.sql
 
       - name: Run personal finance isolation tests
-        env:
-          DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
         shell: bash
         run: |
           set +e
-          output=$(psql "$DB_URL" --set ON_ERROR_STOP=0 --file supabase/tests/finance_isolation.sql 2>&1)
+          output=$(docker exec -i supabase_db_fwpycxrnkzaguulxkcqt psql --username postgres --dbname postgres --set ON_ERROR_STOP=0 < supabase/tests/finance_isolation.sql 2>&1)
           status=$?
           set -e
           printf '%s\n' "$output"
