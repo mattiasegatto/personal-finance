@@ -1,0 +1,41 @@
+name: Regenerate Bun lockfile
+
+on:
+  push:
+    branches:
+      - migration/standalone-stack
+    paths:
+      - package.json
+      - .github/workflows/regenerate-bun-lockfile.yml
+
+permissions:
+  contents: write
+
+jobs:
+  lockfile:
+    name: Regenerate and commit bun.lock
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out migration branch
+        uses: actions/checkout@v4
+        with:
+          ref: migration/standalone-stack
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Regenerate lockfile
+        run: bun install
+
+      - name: Commit updated lockfile
+        run: |
+          if git diff --quiet -- bun.lock; then
+            echo "bun.lock is already up to date."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bun.lock
+          git commit -m "Regenerate Bun lockfile after dependency cleanup"
+          git push origin migration/standalone-stack
