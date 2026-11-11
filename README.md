@@ -1,56 +1,64 @@
 # Personal Finance
 
-INTEGRAZIONE AL PROGETTO — SPESE CONDIVISE
+Applicazione web per la gestione delle finanze personali e delle spese condivise.
 
-L'app dovrà anche sostituire Splitwise per la gestione delle spese condivise tra due persone.
+## Architettura
 
-Per questa fase realizza soltanto le schermate e la navigazione con dati fittizi. Non collegare ancora database o servizi esterni.
+- **Frontend e server:** React, TanStack Start e Vite.
+- **Database e autenticazione:** Supabase (PostgreSQL e Auth).
+- **Sicurezza dei dati:** Row Level Security (RLS) e controlli lato server.
+- **Migrazioni database:** file SQL versionati in `supabase/migrations/`.
+- **Test database:** verifiche automatizzate in `supabase/tests/`, eseguite in CI su un'istanza Supabase locale.
 
-Prevedi una sezione "Spese condivise" con:
+L'applicazione è progettata per essere indipendente da uno specifico ambiente di sviluppo o hosting.
 
-Riepilogo delle spese comuni per mese.
+## Principi del progetto
 
-Elenco delle spese con data, descrizione, categoria, importo e pagatore.
+- Inserimento e aggiornamento manuale dei dati finanziari.
+- Separazione tra spazi personali e condivisi.
+- Nessuna sincronizzazione bancaria automatica.
+- Importi monetari memorizzati in centesimi interi.
+- Le chiavi amministrative Supabase sono riservate esclusivamente al server e non devono mai essere inserite nel codice client o nel repository.
 
-Divisione predefinita al 50% tra due partecipanti.
+## Configurazione locale
 
-Possibilità di personalizzare le quote per una singola spesa.
+Prerequisiti: Bun, Docker e Supabase CLI.
 
-Saldo progressivo che mostra chi deve denaro a chi.
+1. Clona il repository e installa le dipendenze:
 
-Storico dei rimborsi e dei pareggi periodici.
+   ```sh
+   bun install --frozen-lockfile
+   ```
 
-Filtri per periodo, categoria e partecipante.
+2. Crea il file `.env` partendo da `.env.example` e configura le variabili richieste. Non condividere né versionare il file `.env`.
 
-ARCHITETTURA E REGOLE CONTABILI
+3. Avvia lo stack Supabase locale:
 
-Le finanze personali e quelle condivise devono essere separate logicamente, pur potendo utilizzare gli stessi movimenti quando una spesa viene collegata a un pagamento personale.
+   ```sh
+   supabase start
+   supabase db reset
+   ```
 
-Non duplicare le uscite bancarie. Un rimborso tra partecipanti non deve essere trattato come nuovo reddito o nuova spesa condivisa.
+4. Avvia l'applicazione:
 
-Prevedi fin dall'architettura spazi personali e spazi condivisi, con autorizzazioni individuali. Un partecipante allo spazio condiviso non deve poter visualizzare automaticamente i conti, gli investimenti o gli altri dati privati dell'altro.
+   ```sh
+   bun run dev
+   ```
 
-Mantieni il modello estensibile per supportare in futuro più partecipanti, quote variabili e spese ricorrenti.
-
-Per ora usa esclusivamente dati dimostrativi. Non implementare ancora autenticazione, database o calcoli definitivi: questi saranno progettati e verificati in una fase successiva.
-
-This project was built with [Lovable](https://lovable.dev).
-
-## Build with Lovable
-
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/00b8ef70-f4e5-4ce6-9a58-03da6a3af429).
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
-
-## Development
-
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+## Comandi utili
 
 ```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
-npm run dev
+bun run lint
+bun run test
+bun run build
 ```
+
+## Database
+
+Le migrazioni SQL ufficiali si trovano in `supabase/migrations/`. Per ricreare il database locale da zero si utilizza `supabase db reset`.
+
+**Non applicare migrazioni direttamente al progetto Supabase remoto durante lo sviluppo o la validazione.** Le modifiche al database remoto devono essere eseguite solo dopo revisione, test locali e approvazione esplicita.
+
+## Stato della migrazione
+
+Il ramo `migration/standalone-stack` contiene il lavoro per rendere il progetto indipendente dall'ambiente Lovable. Il ramo `main` e il vecchio ambiente cloud devono restare intatti fino al completamento della validazione e all'approvazione del passaggio.
