@@ -11,6 +11,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: bun-lockfile-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   lockfile:
     name: Regenerate and commit bun.lock
