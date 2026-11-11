@@ -53,7 +53,7 @@ export function AppSidebar() {
           <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-sidebar-primary font-display text-sidebar-primary-foreground">
             f
           </div>
-          {!collapsed && <span className="font-display text-lg text-sidebar-accent-foreground"">Personal Finance</span>}
+          {!collapsed && <span className="font-display text-lg text-sidebar-accent-foreground">Personal Finance</span>}
         </div>
       </SidebarHeader>
       <SidebarContent>
