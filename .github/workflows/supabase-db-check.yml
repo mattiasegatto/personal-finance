@@ -1,0 +1,57 @@
+name: Supabase database verification
+
+on:
+  push:
+    branches:
+      - migration/standalone-stack
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  database:
+    name: Rebuild database and verify RLS
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start local Supabase stack
+        run: supabase start
+
+      - name: Rebuild database from migrations
+        run: supabase db reset --local
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+
+      - name: Run space and membership isolation tests
+        env:
+          DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: psql "$DB_URL" --set ON_ERROR_STOP=1 --file supabase/tests/rls_isolation.sql
+
+      - name: Run personal finance isolation tests
+        env:
+          DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        shell: bash
+        run: |
+          set +e
+          output=$(psql "$DB_URL" --set ON_ERROR_STOP=0 --file supabase/tests/finance_isolation.sql 2>&1)
+          status=$?
+          set -e
+          printf '%s\\n' "$output"
+          if ! grep -q 'ALL_PASSED:' <<< "$output"; then
+            echo "Finance isolation checks did not reach their expected success marker (psql exit: $status)."
+            exit 1
+          fi
