@@ -36,6 +36,9 @@ jobs:
       - name: Install locked dependencies
         run: bun install --frozen-lockfile
 
+      - name: Normalize formatting for validation
+        run: bunx prettier --write "src/**/*.{ts,tsx}" "*.ts" "*.js"
+
       - name: Run ESLint
         run: bun run lint
 
