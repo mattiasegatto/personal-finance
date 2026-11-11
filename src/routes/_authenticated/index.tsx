@@ -6,9 +6,15 @@ export const Route = createFileRoute("/_authenticated/")({
   head: () => ({
     meta: [
       { title: "Dashboard — Fondo, finanze personali" },
-      { name: "description", content: "Panoramica di patrimonio, liquidità e spese condivise (dati dimostrativi)." },
+      {
+        name: "description",
+        content: "Panoramica di patrimonio, liquidità e spese condivise (dati dimostrativi).",
+      },
       { property: "og:title", content: "Dashboard — Fondo" },
-      { property: "og:description", content: "Panoramica di patrimonio, liquidità e spese condivise." },
+      {
+        property: "og:description",
+        content: "Panoramica di patrimonio, liquidità e spese condivise.",
+      },
     ],
   }),
   component: Index,
@@ -36,7 +42,9 @@ function Index() {
           <p className="font-display text-xl">Spese condivise con Giulia</p>
           <p className="text-sm opacity-80">Consulta saldo, spese del mese e rimborsi.</p>
         </div>
-        <Button asChild variant="secondary"><Link to="/spese-condivise">Apri</Link></Button>
+        <Button asChild variant="secondary">
+          <Link to="/spese-condivise">Apri</Link>
+        </Button>
       </div>
     </div>
   );

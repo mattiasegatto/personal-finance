@@ -1,10 +1,22 @@
 import type { ReactNode } from "react";
 
-export function PageHeader({ eyebrow, title, children }: { eyebrow?: string; title: string; children?: ReactNode }) {
+export function PageHeader({
+  eyebrow,
+  title,
+  children,
+}: {
+  eyebrow?: string;
+  title: string;
+  children?: ReactNode;
+}) {
   return (
     <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
       <div>
-        {eyebrow && <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{eyebrow}</p>}
+        {eyebrow && (
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            {eyebrow}
+          </p>
+        )}
         <h1 className="mt-1 text-3xl md:text-4xl">{title}</h1>
       </div>
       {children}

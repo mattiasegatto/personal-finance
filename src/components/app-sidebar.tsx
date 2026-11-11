@@ -1,13 +1,32 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  LayoutDashboard, ArrowLeftRight, CreditCard, Landmark, TrendingUp, Repeat,
-  CalendarClock, BarChart3, Settings, Users, Lock, LogOut, Tags,
+  LayoutDashboard,
+  ArrowLeftRight,
+  CreditCard,
+  Landmark,
+  TrendingUp,
+  Repeat,
+  CalendarClock,
+  BarChart3,
+  Settings,
+  Users,
+  Lock,
+  LogOut,
+  Tags,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
-  SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar,
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar";
 
 const personal = [
@@ -53,28 +72,46 @@ export function AppSidebar() {
           <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-sidebar-primary font-display text-sidebar-primary-foreground">
             f
           </div>
-          {!collapsed && <span className="font-display text-lg text-sidebar-accent-foreground">Personal Finance</span>}
+          {!collapsed && (
+            <span className="font-display text-lg text-sidebar-accent-foreground">
+              Personal Finance
+            </span>
+          )}
         </div>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className="gap-1.5"><Lock className="h-3 w-3" />Spazio personale</SidebarGroupLabel>
-          <SidebarGroupContent><SidebarMenu>{personal.map(item)}</SidebarMenu></SidebarGroupContent>
+          <SidebarGroupLabel className="gap-1.5">
+            <Lock className="h-3 w-3" />
+            Spazio personale
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>{personal.map(item)}</SidebarMenu>
+          </SidebarGroupContent>
         </SidebarGroup>
         <SidebarGroup>
-          <SidebarGroupLabel className="gap-1.5"><Users className="h-3 w-3" />Spazio condiviso</SidebarGroupLabel>
-          <SidebarGroupContent><SidebarMenu>{item({ title: "Spese condivise", url: "/spese-condivise", icon: Users })}</SidebarMenu></SidebarGroupContent>
+          <SidebarGroupLabel className="gap-1.5">
+            <Users className="h-3 w-3" />
+            Spazio condiviso
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {item({ title: "Spese condivise", url: "/spese-condivise", icon: Users })}
+            </SidebarMenu>
+          </SidebarGroupContent>
         </SidebarGroup>
         <SidebarGroup className="mt-auto">
-          <SidebarGroupContent><SidebarMenu>
-            {item({ title: "Impostazioni e spazi", url: "/impostazioni", icon: Settings })}
-            <SidebarMenuItem>
-              <SidebarMenuButton tooltip="Esci" onClick={signOut}>
-                <LogOut className="h-4 w-4" />
-                {!collapsed && <span>Esci</span>}
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu></SidebarGroupContent>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {item({ title: "Impostazioni e spazi", url: "/impostazioni", icon: Settings })}
+              <SidebarMenuItem>
+                <SidebarMenuButton tooltip="Esci" onClick={signOut}>
+                  <LogOut className="h-4 w-4" />
+                  {!collapsed && <span>Esci</span>}
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
     </Sidebar>

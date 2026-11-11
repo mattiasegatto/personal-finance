@@ -8,7 +8,11 @@ export type CategoryKind = E["category_kind"];
 export type Direction = E["tx_direction"];
 
 export const accountTypeLabel: Record<AccountType, string> = {
-  checking: "Conto corrente", savings: "Conto deposito", card: "Carta", cash: "Contanti", other: "Altro",
+  checking: "Conto corrente",
+  savings: "Conto deposito",
+  card: "Carta",
+  cash: "Contanti",
+  other: "Altro",
 };
 export const kindLabel: Record<CategoryKind, string> = { income: "Entrate", expense: "Spese" };
 
@@ -24,11 +28,18 @@ export function parseCents(input: string, allowNegative = false): number | null 
 export const centsToInput = (c: number) => (c / 100).toFixed(2).replace(".", ",");
 
 export const errMsg = (e: unknown) =>
-  e instanceof Error ? e.message : ((e as { message?: string })?.message ?? "Operazione non riuscita");
+  e instanceof Error
+    ? e.message
+    : ((e as { message?: string })?.message ?? "Operazione non riuscita");
 
 async function personalSpaceId() {
   const { data: auth } = await supabase.auth.getUser();
-  const { data, error } = await supabase.from("spaces").select("id").eq("kind", "personal").eq("created_by", auth.user!.id).single();
+  const { data, error } = await supabase
+    .from("spaces")
+    .select("id")
+    .eq("kind", "personal")
+    .eq("created_by", auth.user!.id)
+    .single();
   if (error) throw error;
   return data.id;
 }
@@ -42,8 +53,13 @@ export const financeQuery = queryOptions({
       supabase.from("accounts").select("*").eq("space_id", spaceId).order("created_at"),
       supabase.from("account_balances").select("*").eq("space_id", spaceId),
       supabase.from("categories").select("*").eq("space_id", spaceId).order("name"),
-      supabase.from("transactions").select("*").eq("space_id", spaceId).is("deleted_at", null)
-        .order("occurred_on", { ascending: false }).order("created_at", { ascending: false }),
+      supabase
+        .from("transactions")
+        .select("*")
+        .eq("space_id", spaceId)
+        .is("deleted_at", null)
+        .order("occurred_on", { ascending: false })
+        .order("created_at", { ascending: false }),
     ]);
     const err = a.error ?? b.error ?? c.error ?? t.error;
     if (err) throw err;
@@ -51,19 +67,33 @@ export const financeQuery = queryOptions({
     const categories = c.data ?? [];
     const byId = new Map(categories.map((x) => [x.id, x]));
     const catLabel = (id: string) => {
-      const x = byId.get(id); if (!x) return "—";
+      const x = byId.get(id);
+      if (!x) return "—";
       const p = x.parent_id ? byId.get(x.parent_id) : undefined;
       return p ? `${p.name} › ${x.name}` : x.name;
     };
     const rootKind = (id: string): CategoryKind | null => {
-      const x = byId.get(id); if (!x) return null;
-      return x.kind ?? (x.parent_id ? byId.get(x.parent_id)?.kind ?? null : null);
+      const x = byId.get(id);
+      if (!x) return null;
+      return x.kind ?? (x.parent_id ? (byId.get(x.parent_id)?.kind ?? null) : null);
     };
     return {
       spaceId,
-      accounts: (a.data ?? []).map((x) => ({ ...x, initial_balance_cents: Number(x.initial_balance_cents), balance_cents: bal.get(x.id) ?? Number(x.initial_balance_cents) })),
-      categories: categories.map((x) => ({ ...x, label: catLabel(x.id), rootKind: rootKind(x.id) })),
-      transactions: (t.data ?? []).map((x) => ({ ...x, amount_cents: Number(x.amount_cents), categoryLabel: catLabel(x.category_id) })),
+      accounts: (a.data ?? []).map((x) => ({
+        ...x,
+        initial_balance_cents: Number(x.initial_balance_cents),
+        balance_cents: bal.get(x.id) ?? Number(x.initial_balance_cents),
+      })),
+      categories: categories.map((x) => ({
+        ...x,
+        label: catLabel(x.id),
+        rootKind: rootKind(x.id),
+      })),
+      transactions: (t.data ?? []).map((x) => ({
+        ...x,
+        amount_cents: Number(x.amount_cents),
+        categoryLabel: catLabel(x.category_id),
+      })),
     };
   },
 });
