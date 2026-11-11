@@ -50,7 +50,7 @@ jobs:
           output=$(psql "$DB_URL" --set ON_ERROR_STOP=0 --file supabase/tests/finance_isolation.sql 2>&1)
           status=$?
           set -e
-          printf '%s\\n' "$output"
+          printf '%s\n' "$output"
           if ! grep -q 'ALL_PASSED:' <<< "$output"; then
             echo "Finance isolation checks did not reach their expected success marker (psql exit: $status)."
             exit 1
