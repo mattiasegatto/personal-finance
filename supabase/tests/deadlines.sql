@@ -11,6 +11,18 @@ begin
  insert into public.categories(space_id,kind,name) values(s,'expense','Scadenze test') returning id into c;
  insert into public.deadlines(space_id,account_id,category_id,direction,amount_cents,title,due_on)
  values(s,a,c,'outflow',4567,'Bolletta test',current_date) returning id into d;
+ begin
+   update public.accounts set archived_at=now() where id=a;
+   raise exception 'Archiviazione conto con scadenza aperta non bloccata';
+ exception when others then
+   if sqlerrm not like '%scadenza aperta%' then raise; end if;
+ end;
+ begin
+   update public.categories set archived_at=now() where id=c;
+   raise exception 'Archiviazione categoria con scadenza aperta non bloccata';
+ exception when others then
+   if sqlerrm not like '%scadenza aperta%' then raise; end if;
+ end;
  tx:=public.complete_deadline(d);
  if not exists(select 1 from public.transactions where id=tx and amount_cents=4567) then raise exception 'Movimento non creato'; end if;
  if (select status from public.deadlines where id=d)<>'completed' then raise exception 'Scadenza non completata'; end if;
@@ -20,6 +32,6 @@ begin
  exception when others then
    if sqlerrm not like '%non è più da completare%' then raise; end if;
  end;
- raise exception 'ALL_PASSED: scadenza completata e doppia conferma bloccata';
+ raise exception 'ALL_PASSED: riferimenti aperti protetti, scadenza completata e doppia conferma bloccata';
 end $$;
 rollback;
