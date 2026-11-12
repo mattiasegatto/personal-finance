@@ -44,6 +44,7 @@ type Settlement = {
   amount_cents: number;
   kind: string;
   note: string | null;
+  linked_transaction_id: string | null;
 };
 type Category = {
   id: string;
@@ -149,9 +150,25 @@ function SharedPage() {
     });
     return b;
   }, [expenses, settlements]);
+  const txQuery = useQuery({
+    queryKey: ["personal-outflows-for-link", personalSpaceId],
+    enabled: !!personalSpaceId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("transactions")
+        .select("id,occurred_on,description,amount_cents")
+        .eq("space_id", personalSpaceId!)
+        .eq("direction", "outflow")
+        .is("deleted_at", null)
+        .order("occurred_on", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const [linkedTransaction, setLinkedTransaction] = useState(initial?.linked_transaction_id ?? "");
   const debtor = members.find((m) => (balances[m.user_id] ?? 0) < 0),
     creditor = members.find((m) => (balances[m.user_id] ?? 0) > 0);
   const canEdit = space?.myRole === "owner" || space?.myRole === "member";
+  const personalSpaceId = spacesData.spaces.find((s) => s.kind === "personal")?.id;
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ["shared-finance", space?.id] });
   };
@@ -439,6 +456,7 @@ function SharedPage() {
           members={members}
           categories={data?.categories ?? []}
           uid={spacesData.uid!}
+          personalSpaceId={personalSpaceId}
           initial={editingExpense ?? undefined}
           onClose={() => {
             setExpenseOpen(false);
@@ -453,6 +471,7 @@ function SharedPage() {
           members={members}
           balances={balances}
           uid={spacesData.uid!}
+          personalSpaceId={personalSpaceId}
           initial={editingSettlement ?? undefined}
           onClose={() => {
             setSettlementOpen(false);
@@ -493,6 +512,7 @@ function ExpenseDialog({
   members,
   categories,
   uid,
+  personalSpaceId,
   initial,
   onClose,
   onSaved,
@@ -501,11 +521,27 @@ function ExpenseDialog({
   members: Member[];
   categories: Category[];
   uid: string;
+  personalSpaceId?: string;
   initial?: Expense;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const active = members.filter((m) => m.role !== "viewer");
+  const txQuery = useQuery({
+    queryKey: ["personal-outflows-for-link", personalSpaceId],
+    enabled: !!personalSpaceId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("transactions")
+        .select("id,occurred_on,description,amount_cents")
+        .eq("space_id", personalSpaceId!)
+        .eq("direction", "outflow")
+        .is("deleted_at", null)
+        .order("occurred_on", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const [linkedTransaction, setLinkedTransaction] = useState(initial?.linked_transaction_id ?? "");
   const [date, setDate] = useState(initial?.occurred_on ?? today()),
     [description, setDescription] = useState(initial?.description ?? ""),
     [amount, setAmount] = useState(
@@ -546,6 +582,10 @@ function ExpenseDialog({
       return;
     }
     setBusy(true);
+    if (initial?.linked_transaction_id && !linkedTransaction) {
+      const { error: unlinkError } = await supabase.rpc("unlink_shared_expense_transaction", { _id: initial.id });
+      if (unlinkError) { setBusy(false); toast.error(unlinkError.message); return; }
+    }
     const { error } = await supabase.rpc("save_shared_expense", {
       _id: initial?.id ?? null,
       _space_id: spaceId,
@@ -556,12 +596,12 @@ function ExpenseDialog({
       _paid_by_user_id: payer,
       _split_mode: Object.keys(shares).length ? "amount" : "equal",
       _shares: split,
-      _linked_transaction_id: initial?.linked_transaction_id ?? null,
+      _linked_transaction_id: linkedTransaction || null,
     });
     setBusy(false);
     if (error) toast.error(error.message);
     else {
-      toast.success("Spesa registrata");
+      toast.success(initial ? "Spesa aggiornata" : "Spesa registrata");
       onSaved();
       onClose();
     }
@@ -628,6 +668,22 @@ function ExpenseDialog({
             </SelectContent>
           </Select>
         </div>
+        <div>
+          <Label>Movimento personale collegato (facoltativo)</Label>
+          <Select value={linkedTransaction || "none"} onValueChange={(v) => setLinkedTransaction(v === "none" ? "" : v)}>
+            <SelectTrigger><SelectValue placeholder="Nessun collegamento" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Nessun collegamento</SelectItem>
+              {(txQuery.data ?? []).map((t) => (
+                <SelectItem key={t.id} value={t.id}>
+                  {t.occurred_on} · {t.description || "Uscita"} · {money(Number(t.amount_cents))}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="mt-1 text-xs text-muted-foreground">Sono selezionabili solo uscite del tuo spazio personale. L'importo deve coincidere esattamente con quello della spesa e il pagatore deve essere tu.</p>
+          {initial?.linked_transaction_id && <p className="text-xs text-muted-foreground">Per cambiare il pagatore, prima scollega il movimento.</p>}
+        </div>
         <div className="space-y-2">
           <Label>Quote individuali (predefinite 50/50 o ripartite equamente)</Label>
           {active.map((m, i) => (
@@ -668,6 +724,7 @@ function SettlementDialog({
   members,
   balances,
   uid,
+  personalSpaceId,
   initial,
   onClose,
   onSaved,
@@ -676,6 +733,7 @@ function SettlementDialog({
   members: Member[];
   balances: Record<string, number>;
   uid: string;
+  personalSpaceId?: string;
   initial?: Settlement;
   onClose: () => void;
   onSaved: () => void;
@@ -715,12 +773,12 @@ function SettlementDialog({
       _amount_cents: cents,
       _kind: initial?.kind ?? "rimborso",
       _note: note.trim() || null,
-      _linked_transaction_id: null,
+      _linked_transaction_id: linkedTransaction || null,
     });
     setBusy(false);
     if (error) toast.error(error.message);
     else {
-      toast.success("Rimborso registrato");
+      toast.success(initial ? "Rimborso aggiornato" : "Rimborso registrato");
       onSaved();
       onClose();
     }
@@ -774,6 +832,21 @@ function SettlementDialog({
               required
             />
           </div>
+        </div>
+        <div>
+          <Label>Movimento personale collegato (facoltativo)</Label>
+          <Select value={linkedTransaction || "none"} onValueChange={(v) => setLinkedTransaction(v === "none" ? "" : v)}>
+            <SelectTrigger><SelectValue placeholder="Nessun collegamento" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Nessun collegamento</SelectItem>
+              {(txQuery.data ?? []).map((t) => (
+                <SelectItem key={t.id} value={t.id}>
+                  {t.occurred_on} · {t.description || "Uscita"} · {money(Number(t.amount_cents))}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="mt-1 text-xs text-muted-foreground">Collega l'uscita personale con importo identico, effettuata da chi paga il rimborso.</p>
         </div>
         <div>
           <Label>Nota</Label>
