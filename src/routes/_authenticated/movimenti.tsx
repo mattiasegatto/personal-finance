@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { eur, dateFull } from "@/lib/domain";
-import { centsToInput, errMsg, financeQuery, parseCents, type Direction } from "@/lib/finance";
+import { centsToInput, errMsg, financeQuery, localDateISO, parseCents, type Direction } from "@/lib/finance";
 import { buildMovementList, movementTotals } from "@/lib/movements";
 
 export const Route = createFileRoute("/_authenticated/movimenti")({
@@ -337,7 +337,7 @@ function TxDialog({
   const [direction, setDirection] = useState<Direction>(tx?.direction ?? "outflow");
   const [account, setAccount] = useState(tx?.account_id ?? activeAccounts[0]?.id ?? "");
   const [category, setCategory] = useState(tx?.category_id ?? "");
-  const [date, setDate] = useState(tx?.occurred_on ?? new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(tx?.occurred_on ?? localDateISO());
   const [amount, setAmount] = useState(tx ? centsToInput(tx.amount_cents) : "");
   const [desc, setDesc] = useState(tx?.description ?? "");
   const [busy, setBusy] = useState(false);
