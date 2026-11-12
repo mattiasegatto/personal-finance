@@ -30,8 +30,7 @@ type MovementFilter = {
   query?: string;
 };
 export type MovementRow =
-  | { kind: "ordinary"; data: OrdinaryMovement }
-  | { kind: "transfer"; data: TransferMovement };
+  { kind: "ordinary"; data: OrdinaryMovement } | { kind: "transfer"; data: TransferMovement };
 
 export function buildMovementList(
   transactions: OrdinaryMovement[],
