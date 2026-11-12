@@ -567,106 +567,106 @@ export type Database = {
       };
 
       shared_expenses: {
-      Row: {
-        id: string;
-        space_id: string;
-        occurred_on: string;
-        description: string;
-        category_id: string;
-        amount_cents: number;
-        paid_by_user_id: string;
-        split_mode: string;
-        linked_transaction_id: string | null;
-        deleted_at: string | null;
-        created_by: string;
-        created_at: string;
-        updated_at: string;
+        Row: {
+          id: string;
+          space_id: string;
+          occurred_on: string;
+          description: string;
+          category_id: string;
+          amount_cents: number;
+          paid_by_user_id: string;
+          split_mode: string;
+          linked_transaction_id: string | null;
+          deleted_at: string | null;
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          space_id: string;
+          occurred_on: string;
+          description: string;
+          category_id: string;
+          amount_cents: number;
+          paid_by_user_id: string;
+          split_mode?: string;
+          linked_transaction_id?: string | null;
+          deleted_at?: string | null;
+          created_by?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          space_id?: string;
+          occurred_on?: string;
+          description?: string;
+          category_id?: string;
+          amount_cents?: number;
+          paid_by_user_id?: string;
+          split_mode?: string;
+          linked_transaction_id?: string | null;
+          deleted_at?: string | null;
+          created_by?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
       };
-      Insert: {
-        id?: string;
-        space_id: string;
-        occurred_on: string;
-        description: string;
-        category_id: string;
-        amount_cents: number;
-        paid_by_user_id: string;
-        split_mode?: string;
-        linked_transaction_id?: string | null;
-        deleted_at?: string | null;
-        created_by?: string;
-        created_at?: string;
-        updated_at?: string;
+      shared_expense_shares: {
+        Row: { expense_id: string; member_user_id: string; amount_cents: number };
+        Insert: { expense_id: string; member_user_id: string; amount_cents: number };
+        Update: { expense_id?: string; member_user_id?: string; amount_cents?: number };
+        Relationships: [];
       };
-      Update: {
-        id?: string;
-        space_id?: string;
-        occurred_on?: string;
-        description?: string;
-        category_id?: string;
-        amount_cents?: number;
-        paid_by_user_id?: string;
-        split_mode?: string;
-        linked_transaction_id?: string | null;
-        deleted_at?: string | null;
-        created_by?: string;
-        created_at?: string;
-        updated_at?: string;
-      };
-      Relationships: [];
-    };
-    shared_expense_shares: {
-      Row: { expense_id: string; member_user_id: string; amount_cents: number };
-      Insert: { expense_id: string; member_user_id: string; amount_cents: number };
-      Update: { expense_id?: string; member_user_id?: string; amount_cents?: number };
-      Relationships: [];
-    };
-    shared_settlements: {
-      Row: {
-        id: string;
-        space_id: string;
-        occurred_on: string;
-        from_user_id: string;
-        to_user_id: string;
-        amount_cents: number;
-        kind: string;
-        note: string | null;
-        linked_transaction_id: string | null;
-        deleted_at: string | null;
-        created_by: string;
-        created_at: string;
-        updated_at: string;
-      };
-      Insert: {
-        id?: string;
-        space_id: string;
-        occurred_on: string;
-        from_user_id: string;
-        to_user_id: string;
-        amount_cents: number;
-        kind?: string;
-        note?: string | null;
-        linked_transaction_id?: string | null;
-        deleted_at?: string | null;
-        created_by?: string;
-        created_at?: string;
-        updated_at?: string;
-      };
-      Update: {
-        id?: string;
-        space_id?: string;
-        occurred_on?: string;
-        from_user_id?: string;
-        to_user_id?: string;
-        amount_cents?: number;
-        kind?: string;
-        note?: string | null;
-        linked_transaction_id?: string | null;
-        deleted_at?: string | null;
-        created_by?: string;
-        created_at?: string;
-        updated_at?: string;
-      };
-      Relationships: [];
+      shared_settlements: {
+        Row: {
+          id: string;
+          space_id: string;
+          occurred_on: string;
+          from_user_id: string;
+          to_user_id: string;
+          amount_cents: number;
+          kind: string;
+          note: string | null;
+          linked_transaction_id: string | null;
+          deleted_at: string | null;
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          space_id: string;
+          occurred_on: string;
+          from_user_id: string;
+          to_user_id: string;
+          amount_cents: number;
+          kind?: string;
+          note?: string | null;
+          linked_transaction_id?: string | null;
+          deleted_at?: string | null;
+          created_by?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          space_id?: string;
+          occurred_on?: string;
+          from_user_id?: string;
+          to_user_id?: string;
+          amount_cents?: number;
+          kind?: string;
+          note?: string | null;
+          linked_transaction_id?: string | null;
+          deleted_at?: string | null;
+          created_by?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
       };
     };
     Views: {
