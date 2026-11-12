@@ -210,32 +210,27 @@ function Transactions() {
                 </td>
               </tr>
             )}
-            {list.map((t) => (
-              <tr key={t.id} className="border-b last:border-0" data-testid="tx-row">
-                <td className="p-3 whitespace-nowrap">{dateFull(t.occurred_on)}</td>
-                <td className="p-3">
-                  {t.description || <span className="text-muted-foreground">—</span>}
-                </td>
-                <td className="p-3">{t.categoryLabel}</td>
-                <td className="p-3">{accName(t.account_id)}</td>
-                <td
-                  className={`p-3 text-right font-medium whitespace-nowrap ${t.direction === "inflow" ? "text-primary" : ""}`}
-                >
-                  {t.direction === "inflow" ? "+" : "−"}
-                  {eur(t.amount_cents / 100)}
+            {list.map((row) => row.kind === "transfer" ? (
+              <tr key={row.data.id} className="border-b last:border-0" data-testid="transfer-row">
+                <td className="p-3 whitespace-nowrap">{dateFull(row.data.occurred_on)}</td>
+                <td className="p-3">{row.data.description || "Trasferimento"}</td>
+                <td className="p-3 text-muted-foreground">Trasferimento</td>
+                <td className="p-3">{accName(row.data.source_account_id)} → {accName(row.data.destination_account_id)}</td>
+                <td className="p-3 text-right font-medium whitespace-nowrap">{eur(row.data.amount_cents / 100)}</td>
+                <td className="p-3 text-right text-muted-foreground">Trasferimento</td>
+              </tr>
+            ) : (
+              <tr key={row.data.id} className="border-b last:border-0" data-testid="tx-row">
+                <td className="p-3 whitespace-nowrap">{dateFull(row.data.occurred_on)}</td>
+                <td className="p-3">{row.data.description || <span className="text-muted-foreground">—</span>}</td>
+                <td className="p-3">{row.data.categoryLabel}</td>
+                <td className="p-3">{accName(row.data.account_id)}</td>
+                <td className={"p-3 text-right font-medium whitespace-nowrap " + (row.data.direction === "inflow" ? "text-primary" : "")}>
+                  {row.data.direction === "inflow" ? "+" : "−"}{eur(row.data.amount_cents / 100)}
                 </td>
                 <td className="p-3 text-right whitespace-nowrap">
-                  <Button size="sm" variant="ghost" onClick={() => setEditing(t)}>
-                    Modifica
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-destructive"
-                    onClick={() => remove(t)}
-                  >
-                    Elimina
-                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setEditing(row.data)}>Modifica</Button>
+                  <Button size="sm" variant="ghost" className="text-destructive" onClick={() => remove(row.data)}>Elimina</Button>
                 </td>
               </tr>
             ))}
