@@ -23,7 +23,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { eur, dateFull } from "@/lib/domain";
-import { centsToInput, errMsg, financeQuery, localDateISO, parseCents, type Direction } from "@/lib/finance";
+import {
+  centsToInput,
+  errMsg,
+  financeQuery,
+  localDateISO,
+  parseCents,
+  type Direction,
+} from "@/lib/finance";
 import { buildMovementList, movementTotals } from "@/lib/movements";
 
 export const Route = createFileRoute("/_authenticated/movimenti")({
