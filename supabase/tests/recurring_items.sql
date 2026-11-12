@@ -23,14 +23,16 @@ begin
   end if;
   begin
     update public.accounts set archived_at=now() where id=a;
-    raise exception 'Archiviazione conto con ricorrenza attiva non bloccata';
+    raise exception 'TEST_FAILURE_ACCOUNT_ARCHIVE_WAS_ALLOWED';
   exception when others then
+    if sqlerrm = 'TEST_FAILURE_ACCOUNT_ARCHIVE_WAS_ALLOWED' then raise; end if;
     if sqlerrm not like '%ricorrenza attiva%' then raise; end if;
   end;
   begin
     update public.categories set archived_at=now() where id=c;
-    raise exception 'Archiviazione categoria con ricorrenza attiva non bloccata';
+    raise exception 'TEST_FAILURE_CATEGORY_ARCHIVE_WAS_ALLOWED';
   exception when others then
+    if sqlerrm = 'TEST_FAILURE_CATEGORY_ARCHIVE_WAS_ALLOWED' then raise; end if;
     if sqlerrm not like '%ricorrenza attiva%' then raise; end if;
   end;
   tx := public.confirm_recurring_item(r,d);
