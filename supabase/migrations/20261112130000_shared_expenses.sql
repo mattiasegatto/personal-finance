@@ -249,3 +249,32 @@ grant execute on function public.save_shared_expense(uuid,uuid,date,text,uuid,bi
   public.save_shared_settlement(uuid,uuid,date,uuid,uuid,bigint,text,text,uuid),
   public.unlink_shared_expense_transaction(uuid), public.delete_shared_expense(uuid),
   public.delete_shared_settlement(uuid) to authenticated;
+
+-- La tabella categorie resta unica: consente anche categorie di spesa nello spazio condiviso.
+drop policy if exists "categories: owner/member creano" on public.categories;
+drop policy if exists "categories: owner/member modificano" on public.categories;
+create policy "categories: owner/member creano" on public.categories for insert to authenticated
+  with check (
+    public.has_space_role(space_id, auth.uid(), array['owner','member']::public.space_role[])
+    and exists (select 1 from public.spaces s where s.id=space_id and s.kind in ('personal','shared') and s.archived_at is null)
+    and (public.is_personal_space(space_id) or public.category_root_kind(id) is null)
+  );
+create policy "categories: owner/member modificano" on public.categories for update to authenticated
+  using (public.has_space_role(space_id, auth.uid(), array['owner','member']::public.space_role[]))
+  with check (
+    public.has_space_role(space_id, auth.uid(), array['owner','member']::public.space_role[])
+    and exists (select 1 from public.spaces s where s.id=space_id and s.kind in ('personal','shared') and s.archived_at is null)
+  );
+
+create or replace function public.guard_shared_space_category() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare sk public.space_kind;
+begin
+  select kind into sk from public.spaces where id=new.space_id;
+  if sk='shared' and public.category_root_kind(new.id) is distinct from 'expense'::public.category_kind then
+    raise exception 'Gli spazi condivisi accettano solo categorie di spesa.';
+  end if;
+  return new;
+end $$;
+create trigger shared_categories_guard before insert or update on public.categories
+  for each row execute function public.guard_shared_space_category();
