@@ -19,11 +19,9 @@ begin
   perform set_config('request.jwt.claims', json_build_object('sub',ua,'role','authenticated','email','fc@test.local')::text, true);
   execute 'set local role authenticated';
 
-  insert into public.accounts(space_id,name,initial_balance_cents) values
-    (sa,'Sorgente',100000),(sa,'Destinazione',20000),(sa,'Valuta diversa',0)
-    returning id into a1;
-  select id into a2 from public.accounts where space_id=sa and name='Destinazione';
-  select id into a3 from public.accounts where space_id=sa and name='Valuta diversa';
+  insert into public.accounts(space_id,name,initial_balance_cents) values (sa,'Sorgente',100000) returning id into a1;
+  insert into public.accounts(space_id,name,initial_balance_cents) values (sa,'Destinazione',20000) returning id into a2;
+  insert into public.accounts(space_id,name,initial_balance_cents) values (sa,'Valuta diversa',0) returning id into a3;
   update public.accounts set currency='USD' where id=a3;
   insert into public.accounts(space_id,name) values (sb,'Conto B') returning id into b1;
 
