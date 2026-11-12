@@ -39,6 +39,20 @@ as $$
 declare
   parent_archived boolean;
 begin
+  if tg_op = 'UPDATE' then
+    if tg_table_name = 'transactions' and new.category_id = old.category_id then
+      return new;
+    end if;
+    if tg_table_name = 'recurring_items'
+       and new.category_id = old.category_id
+       and not (not old.active and new.active) then
+      return new;
+    end if;
+    if tg_table_name = 'deadlines' and new.category_id = old.category_id then
+      return new;
+    end if;
+  end if;
+
   select p.archived_at is not null
     into parent_archived
   from public.categories c
