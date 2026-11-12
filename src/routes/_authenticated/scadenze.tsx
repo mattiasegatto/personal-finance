@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { financeQuery, errMsg, parseCents, type Direction } from "@/lib/finance";
+import { financeQuery, errMsg, localDateISO, parseCents, type Direction } from "@/lib/finance";
 
 export const Route = createFileRoute("/_authenticated/scadenze")({
   head: () => ({
@@ -52,7 +52,7 @@ type Deadline = {
   notes: string | null;
   status: "pending" | "completed" | "cancelled";
 };
-const today = () => new Date().toISOString().slice(0, 10);
+const today = localDateISO;
 const dateText = (s: string) =>
   new Intl.DateTimeFormat("it-IT", { dateStyle: "medium" }).format(new Date(s + "T12:00:00"));
 const money = (c: number, currency: string) =>
