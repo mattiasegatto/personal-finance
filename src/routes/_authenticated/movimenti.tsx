@@ -55,7 +55,9 @@ function Transactions() {
   const qc = useQueryClient();
   const refresh = () => qc.invalidateQueries({ queryKey: ["finance"] });
   const [editing, setEditing] = useState<Tx | "new" | null>(null);
-  const [editingTransfer, setEditingTransfer] = useState<Fin["transfers"][number] | "new" | null>(null);
+  const [editingTransfer, setEditingTransfer] = useState<Fin["transfers"][number] | "new" | null>(
+    null,
+  );
   const [q, setQ] = useState("");
   const [acc, setAcc] = useState(ALL);
   const [dir, setDir] = useState(ALL);
@@ -65,22 +67,46 @@ function Transactions() {
   const accName = (id: string) => data.accounts.find((a) => a.id === id)?.name ?? "—";
 
   const list = useMemo(() => {
-    const ordinary = data.transactions.filter((t) =>
-      (acc === ALL || t.account_id === acc) && (dir === ALL || t.direction === dir) &&
-      (cat === ALL || t.category_id === cat || data.categories.find((c) => c.id === t.category_id)?.parent_id === cat) &&
-      (!from || t.occurred_on >= from) && (!to || t.occurred_on <= to) &&
-      (!q || ((t.description ?? "") + " " + t.categoryLabel).toLowerCase().includes(q.toLowerCase()))
-    ).map((data) => ({ kind: "ordinary" as const, data }));
-    const transfers = data.transfers.filter((t) =>
-      (acc === ALL || t.source_account_id === acc || t.destination_account_id === acc) &&
-      dir === ALL && cat === ALL && (!from || t.occurred_on >= from) && (!to || t.occurred_on <= to) &&
-      (!q || (t.description ?? "Trasferimento").toLowerCase().includes(q.toLowerCase()))
-    ).map((data) => ({ kind: "transfer" as const, data }));
-    return [...ordinary, ...transfers].sort((a, b) => b.data.occurred_on.localeCompare(a.data.occurred_on) || b.data.created_at.localeCompare(a.data.created_at));
+    const ordinary = data.transactions
+      .filter(
+        (t) =>
+          (acc === ALL || t.account_id === acc) &&
+          (dir === ALL || t.direction === dir) &&
+          (cat === ALL ||
+            t.category_id === cat ||
+            data.categories.find((c) => c.id === t.category_id)?.parent_id === cat) &&
+          (!from || t.occurred_on >= from) &&
+          (!to || t.occurred_on <= to) &&
+          (!q ||
+            ((t.description ?? "") + " " + t.categoryLabel)
+              .toLowerCase()
+              .includes(q.toLowerCase())),
+      )
+      .map((data) => ({ kind: "ordinary" as const, data }));
+    const transfers = data.transfers
+      .filter(
+        (t) =>
+          (acc === ALL || t.source_account_id === acc || t.destination_account_id === acc) &&
+          dir === ALL &&
+          cat === ALL &&
+          (!from || t.occurred_on >= from) &&
+          (!to || t.occurred_on <= to) &&
+          (!q || (t.description ?? "Trasferimento").toLowerCase().includes(q.toLowerCase())),
+      )
+      .map((data) => ({ kind: "transfer" as const, data }));
+    return [...ordinary, ...transfers].sort(
+      (a, b) =>
+        b.data.occurred_on.localeCompare(a.data.occurred_on) ||
+        b.data.created_at.localeCompare(a.data.created_at),
+    );
   }, [data, q, acc, dir, cat, from, to]);
   const ordinaryRows = list.filter((r) => r.kind === "ordinary");
-  const inflow = ordinaryRows.filter((r) => r.data.direction === "inflow").reduce((sum, r) => sum + r.data.amount_cents, 0);
-  const outflow = ordinaryRows.filter((r) => r.data.direction === "outflow").reduce((sum, r) => sum + r.data.amount_cents, 0);
+  const inflow = ordinaryRows
+    .filter((r) => r.data.direction === "inflow")
+    .reduce((sum, r) => sum + r.data.amount_cents, 0);
+  const outflow = ordinaryRows
+    .filter((r) => r.data.direction === "outflow")
+    .reduce((sum, r) => sum + r.data.amount_cents, 0);
   const remove = async (t: Tx) => {
     if (
       !confirm(
@@ -210,30 +236,54 @@ function Transactions() {
                 </td>
               </tr>
             )}
-            {list.map((row) => row.kind === "transfer" ? (
-              <tr key={row.data.id} className="border-b last:border-0" data-testid="transfer-row">
-                <td className="p-3 whitespace-nowrap">{dateFull(row.data.occurred_on)}</td>
-                <td className="p-3">{row.data.description || "Trasferimento"}</td>
-                <td className="p-3 text-muted-foreground">Trasferimento</td>
-                <td className="p-3">{accName(row.data.source_account_id)} → {accName(row.data.destination_account_id)}</td>
-                <td className="p-3 text-right font-medium whitespace-nowrap">{eur(row.data.amount_cents / 100)}</td>
-                <td className="p-3 text-right text-muted-foreground">Trasferimento</td>
-              </tr>
-            ) : (
-              <tr key={row.data.id} className="border-b last:border-0" data-testid="tx-row">
-                <td className="p-3 whitespace-nowrap">{dateFull(row.data.occurred_on)}</td>
-                <td className="p-3">{row.data.description || <span className="text-muted-foreground">—</span>}</td>
-                <td className="p-3">{row.data.categoryLabel}</td>
-                <td className="p-3">{accName(row.data.account_id)}</td>
-                <td className={"p-3 text-right font-medium whitespace-nowrap " + (row.data.direction === "inflow" ? "text-primary" : "")}>
-                  {row.data.direction === "inflow" ? "+" : "−"}{eur(row.data.amount_cents / 100)}
-                </td>
-                <td className="p-3 text-right whitespace-nowrap">
-                  <Button size="sm" variant="ghost" onClick={() => setEditing(row.data)}>Modifica</Button>
-                  <Button size="sm" variant="ghost" className="text-destructive" onClick={() => remove(row.data)}>Elimina</Button>
-                </td>
-              </tr>
-            ))}
+            {list.map((row) =>
+              row.kind === "transfer" ? (
+                <tr key={row.data.id} className="border-b last:border-0" data-testid="transfer-row">
+                  <td className="p-3 whitespace-nowrap">{dateFull(row.data.occurred_on)}</td>
+                  <td className="p-3">{row.data.description || "Trasferimento"}</td>
+                  <td className="p-3 text-muted-foreground">Trasferimento</td>
+                  <td className="p-3">
+                    {accName(row.data.source_account_id)} →{" "}
+                    {accName(row.data.destination_account_id)}
+                  </td>
+                  <td className="p-3 text-right font-medium whitespace-nowrap">
+                    {eur(row.data.amount_cents / 100)}
+                  </td>
+                  <td className="p-3 text-right text-muted-foreground">Trasferimento</td>
+                </tr>
+              ) : (
+                <tr key={row.data.id} className="border-b last:border-0" data-testid="tx-row">
+                  <td className="p-3 whitespace-nowrap">{dateFull(row.data.occurred_on)}</td>
+                  <td className="p-3">
+                    {row.data.description || <span className="text-muted-foreground">—</span>}
+                  </td>
+                  <td className="p-3">{row.data.categoryLabel}</td>
+                  <td className="p-3">{accName(row.data.account_id)}</td>
+                  <td
+                    className={
+                      "p-3 text-right font-medium whitespace-nowrap " +
+                      (row.data.direction === "inflow" ? "text-primary" : "")
+                    }
+                  >
+                    {row.data.direction === "inflow" ? "+" : "−"}
+                    {eur(row.data.amount_cents / 100)}
+                  </td>
+                  <td className="p-3 text-right whitespace-nowrap">
+                    <Button size="sm" variant="ghost" onClick={() => setEditing(row.data)}>
+                      Modifica
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-destructive"
+                      onClick={() => remove(row.data)}
+                    >
+                      Elimina
+                    </Button>
+                  </td>
+                </tr>
+              ),
+            )}
           </tbody>
         </table>
       </div>
