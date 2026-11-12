@@ -53,13 +53,13 @@ end;
 $$;
 
 create trigger a_active_category_ancestry_transactions
-before insert or update of category_id on public.transactions
+before insert or update on public.transactions
 for each row execute function public.guard_active_category_ancestry();
 
 create trigger a_active_category_ancestry_recurring
-before insert or update of category_id on public.recurring_items
+before insert or update on public.recurring_items
 for each row execute function public.guard_active_category_ancestry();
 
 create trigger a_active_category_ancestry_deadlines
-before insert or update of category_id on public.deadlines
+before insert or update on public.deadlines
 for each row execute function public.guard_active_category_ancestry();
