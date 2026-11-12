@@ -12,11 +12,20 @@ begin
   insert into public.categories(space_id,kind,name) values(s,'expense','Test spese') returning id into c;
   insert into public.recurring_items(space_id,account_id,category_id,direction,amount_cents,description,frequency,start_on,next_due_on)
   values(s,a,c,'outflow',1234,'Test mensile','monthly',d,d) returning id into r;
+  if public.next_recurring_date(date '2026-01-31', date '2026-01-31', 'monthly') <> date '2026-02-28'
+     or public.next_recurring_date(date '2026-01-31', date '2026-02-28', 'monthly') <> date '2026-03-31' then
+    raise exception 'Ricorrenza mensile non conserva il giorno originario a fine mese';
+  end if;
+  if public.next_recurring_date(date '2024-02-29', date '2024-02-29', 'yearly') <> date '2025-02-28'
+     or public.next_recurring_date(date '2024-02-29', date '2025-02-28', 'yearly') <> date '2026-02-28'
+     or public.next_recurring_date(date '2024-02-29', date '2027-02-28', 'yearly') <> date '2028-02-29' then
+    raise exception 'Ricorrenza annuale non gestisce correttamente gli anni bisestili';
+  end if;
   tx := public.confirm_recurring_item(r,d);
   if not exists(select 1 from public.transactions where id=tx and amount_cents=1234 and occurred_on=d) then
     raise exception 'Movimento non creato correttamente';
   end if;
-  if (select next_due_on from public.recurring_items where id=r) <> (d + interval '1 month')::date then
+  if (select next_due_on from public.recurring_items where id=r) <> public.next_recurring_date(d, d, 'monthly') then
     raise exception 'Prossima data non aggiornata';
   end if;
   begin
