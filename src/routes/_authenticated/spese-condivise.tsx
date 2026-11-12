@@ -266,7 +266,7 @@ function SharedPage() {
               }}
             >
               <Handshake className="mr-2 h-4 w-4" />
-              {initial ? "Salva modifiche" : "Registra rimborso"}
+              {"Registra rimborso"}
             </Button>
           </>
         )}
@@ -568,22 +568,6 @@ function ExpenseDialog({
         : {},
     ),
     [busy, setBusy] = useState(false);
-  const txQuery = useQuery({
-    queryKey: ["personal-outflows-for-link", personalSpaceId],
-    enabled: !!personalSpaceId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("transactions")
-        .select("id,occurred_on,description,amount_cents")
-        .eq("space_id", personalSpaceId!)
-        .eq("direction", "outflow")
-        .is("deleted_at", null)
-        .order("occurred_on", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-  const [linkedTransaction, setLinkedTransaction] = useState(initial?.linked_transaction_id ?? "");
   const cents = parseCents(amount);
   const equal = active.length && cents !== null ? Math.floor(cents / active.length) : 0;
   const split = active.map((m, i) => ({
