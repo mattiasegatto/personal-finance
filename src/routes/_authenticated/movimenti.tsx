@@ -125,8 +125,11 @@ function Transactions() {
     }
   };
 
-  const noSetup =
-    data.accounts.filter((a) => !a.archived_at).length === 0 || data.categories.length === 0;
+  const activeAccounts = data.accounts.filter((a) => !a.archived_at);
+  const canTransfer = activeAccounts.some((a, i) =>
+    activeAccounts.slice(i + 1).some((other) => other.currency === a.currency),
+  );
+  const noSetup = activeAccounts.length === 0 || data.categories.length === 0;
 
   return (
     <div>
@@ -135,7 +138,7 @@ function Transactions() {
           <Button
             variant="outline"
             onClick={() => setEditingTransfer("new")}
-            disabled={data.accounts.filter((a) => !a.archived_at).length < 2}
+            disabled={!canTransfer}
           >
             Trasferimento
           </Button>
@@ -145,6 +148,12 @@ function Transactions() {
           </Button>
         </div>
       </PageHeader>
+
+      {!canTransfer && activeAccounts.length >= 2 && (
+        <p className="mb-4 text-sm text-muted-foreground">
+          Per effettuare un trasferimento servono almeno due conti attivi nella stessa valuta.
+        </p>
+      )}
 
       {noSetup && (
         <div className="mb-6 rounded-2xl border bg-accent p-5 text-sm">
