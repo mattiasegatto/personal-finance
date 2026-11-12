@@ -49,7 +49,7 @@ export const financeQuery = queryOptions({
   queryKey: ["finance"],
   queryFn: async () => {
     const spaceId = await personalSpaceId();
-    const [a, b, c, t] = await Promise.all([
+    const [a, b, c, t, tr] = await Promise.all([
       supabase.from("accounts").select("*").eq("space_id", spaceId).order("created_at"),
       supabase.from("account_balances").select("*").eq("space_id", spaceId),
       supabase.from("categories").select("*").eq("space_id", spaceId).order("name"),
@@ -60,8 +60,15 @@ export const financeQuery = queryOptions({
         .is("deleted_at", null)
         .order("occurred_on", { ascending: false })
         .order("created_at", { ascending: false }),
+      supabase
+        .from("transfers")
+        .select("*")
+        .eq("space_id", spaceId)
+        .is("deleted_at", null)
+        .order("occurred_on", { ascending: false })
+        .order("created_at", { ascending: false }),
     ]);
-    const err = a.error ?? b.error ?? c.error ?? t.error;
+    const err = a.error ?? b.error ?? c.error ?? t.error ?? tr.error;
     if (err) throw err;
     const bal = new Map((b.data ?? []).map((r) => [r.account_id, Number(r.balance_cents ?? 0)]));
     const categories = c.data ?? [];
@@ -92,7 +99,11 @@ export const financeQuery = queryOptions({
       transactions: (t.data ?? []).map((x) => ({
         ...x,
         amount_cents: Number(x.amount_cents),
-        categoryLabel: catLabel(x.category_id),
+        categoryLabel: x.category_id ? catLabel(x.category_id) : "—",
+      })),
+      transfers: (tr.data ?? []).map((x) => ({
+        ...x,
+        amount_cents: Number(x.amount_cents),
       })),
     };
   },
