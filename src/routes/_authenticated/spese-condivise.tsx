@@ -231,11 +231,22 @@ function SharedPage() {
         </Select>
         {canEdit && (
           <>
-            <Button onClick={() => { setEditingExpense(null); setExpenseOpen(true); }}>
+            <Button
+              onClick={() => {
+                setEditingExpense(null);
+                setExpenseOpen(true);
+              }}
+            >
               <Plus className="mr-2 h-4 w-4" />
               Nuova spesa
             </Button>
-            <Button variant="outline" onClick={() => { setEditingSettlement(null); setSettlementOpen(true); }}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEditingSettlement(null);
+                setSettlementOpen(true);
+              }}
+            >
               <Handshake className="mr-2 h-4 w-4" />
               {initial ? "Salva modifiche" : "Registra rimborso"}
             </Button>
@@ -344,7 +355,15 @@ function SharedPage() {
                     <span className="text-xs text-muted-foreground">Collegata</span>
                   )}
                   {canEdit && (
-                    <Button size="icon" variant="ghost" aria-label="Modifica spesa" onClick={() => { setEditingExpense(e); setExpenseOpen(true); }}>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      aria-label="Modifica spesa"
+                      onClick={() => {
+                        setEditingExpense(e);
+                        setExpenseOpen(true);
+                      }}
+                    >
                       <Pencil className="h-4 w-4" />
                     </Button>
                   )}
@@ -384,7 +403,15 @@ function SharedPage() {
                   </span>
                   <strong className="num">{money(s.amount_cents)}</strong>
                   {canEdit && (
-                    <Button size="icon" variant="ghost" aria-label="Modifica rimborso" onClick={() => { setEditingSettlement(s); setSettlementOpen(true); }}>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      aria-label="Modifica rimborso"
+                      onClick={() => {
+                        setEditingSettlement(s);
+                        setSettlementOpen(true);
+                      }}
+                    >
                       <Pencil className="h-4 w-4" />
                     </Button>
                   )}
@@ -413,7 +440,10 @@ function SharedPage() {
           categories={data?.categories ?? []}
           uid={spacesData.uid!}
           initial={editingExpense ?? undefined}
-          onClose={() => { setExpenseOpen(false); setEditingExpense(null); }}
+          onClose={() => {
+            setExpenseOpen(false);
+            setEditingExpense(null);
+          }}
           onSaved={refresh}
         />
       )}
@@ -424,7 +454,10 @@ function SharedPage() {
           balances={balances}
           uid={spacesData.uid!}
           initial={editingSettlement ?? undefined}
-          onClose={() => { setSettlementOpen(false); setEditingSettlement(null); }}
+          onClose={() => {
+            setSettlementOpen(false);
+            setEditingSettlement(null);
+          }}
           onSaved={refresh}
         />
       )}
@@ -475,13 +508,22 @@ function ExpenseDialog({
   const active = members.filter((m) => m.role !== "viewer");
   const [date, setDate] = useState(initial?.occurred_on ?? today()),
     [description, setDescription] = useState(initial?.description ?? ""),
-    [amount, setAmount] = useState(initial ? (initial.amount_cents / 100).toFixed(2).replace(".", ",") : ""),
+    [amount, setAmount] = useState(
+      initial ? (initial.amount_cents / 100).toFixed(2).replace(".", ",") : "",
+    ),
     [payer, setPayer] = useState(initial?.paid_by_user_id ?? uid),
     [category, setCategory] = useState(
       initial?.category_id ?? categories.find((c) => c.parent_id)?.id ?? categories[0]?.id ?? "",
     ),
     [shares, setShares] = useState<Record<string, string>>(
-      initial ? Object.fromEntries(initial.shares.map((s) => [s.member_user_id, (s.amount_cents / 100).toFixed(2).replace(".", ",")])) : {},
+      initial
+        ? Object.fromEntries(
+            initial.shares.map((s) => [
+              s.member_user_id,
+              (s.amount_cents / 100).toFixed(2).replace(".", ","),
+            ]),
+          )
+        : {},
     ),
     [busy, setBusy] = useState(false);
   const cents = parseCents(amount);
@@ -642,13 +684,20 @@ function SettlementDialog({
     creditor = members.find((m) => (balances[m.user_id] ?? 0) > 0);
   const [from, setFrom] = useState(initial?.from_user_id ?? debtor?.user_id ?? uid),
     [to, setTo] = useState(
-      initial?.to_user_id ?? creditor?.user_id ?? members.find((m) => m.user_id !== uid)?.user_id ?? "",
+      initial?.to_user_id ??
+        creditor?.user_id ??
+        members.find((m) => m.user_id !== uid)?.user_id ??
+        "",
     ),
     [date, setDate] = useState(initial?.occurred_on ?? today()),
     [amount, setAmount] = useState(
-      initial ? (initial.amount_cents / 100).toFixed(2).replace(".", ",") : debtor && creditor
-        ? (Math.min(-(balances[debtor.user_id] ?? 0), balances[creditor.user_id] ?? 0) / 100).toFixed(2).replace(".", ",")
-        : "",
+      initial
+        ? (initial.amount_cents / 100).toFixed(2).replace(".", ",")
+        : debtor && creditor
+          ? (Math.min(-(balances[debtor.user_id] ?? 0), balances[creditor.user_id] ?? 0) / 100)
+              .toFixed(2)
+              .replace(".", ",")
+          : "",
     ),
     [note, setNote] = useState(initial?.note ?? ""),
     [busy, setBusy] = useState(false);
