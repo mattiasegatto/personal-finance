@@ -773,10 +773,10 @@ function SettlementDialog({
 }) {
   const debtor = members.find((m) => (balances[m.user_id] ?? 0) < 0),
     creditor = members.find((m) => (balances[m.user_id] ?? 0) > 0);
-  const [from, setFrom] = useState(initial?.from_user_id ?? suggestions[0]?.from ?? uid),
+  const [from, setFrom] = useState(initial?.from_user_id ?? debtor?.user_id ?? uid),
     [to, setTo] = useState(
       initial?.to_user_id ??
-        suggestions[0]?.to ??
+        creditor?.user_id ??
         members.find((m) => m.user_id !== uid)?.user_id ??
         "",
     ),
@@ -784,8 +784,8 @@ function SettlementDialog({
     [amount, setAmount] = useState(
       initial
         ? (initial.amount_cents / 100).toFixed(2).replace(".", ",")
-        : suggestions[0]
-          ? (suggestions[0].amount / 100).toFixed(2).replace(".", ",")
+        : debtor && creditor
+          ? (Math.min(-(balances[debtor.user_id] ?? 0), balances[creditor.user_id] ?? 0) / 100).toFixed(2).replace(".", ",")
           : "",
     ),
     [note, setNote] = useState(initial?.note ?? ""),
