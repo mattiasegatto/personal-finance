@@ -52,7 +52,6 @@ type Deadline = {
   notes: string | null;
   status: "pending" | "completed" | "cancelled";
 };
-const db = supabase as any;
 const today = () => new Date().toISOString().slice(0, 10);
 const dateText = (s: string) =>
   new Intl.DateTimeFormat("it-IT", { dateStyle: "medium" }).format(new Date(s + "T12:00:00"));
@@ -89,7 +88,7 @@ function Deadlines() {
   const accountName = (id: string) => data.accounts.find((a) => a.id === id)?.name ?? "—";
   const categoryName = (id: string) => data.categories.find((c) => c.id === id)?.label ?? "—";
   const complete = async (item: Deadline) => {
-    const { error } = await db.rpc("complete_deadline", { _id: item.id });
+    const { error } = await supabase.rpc("complete_deadline", { _id: item.id });
     if (error) toast.error(errMsg(error));
     else {
       toast.success("Movimento registrato e scadenza completata");
@@ -97,7 +96,7 @@ function Deadlines() {
     }
   };
   const cancel = async (item: Deadline) => {
-    const { error } = await db.rpc("cancel_deadline", { _id: item.id });
+    const { error } = await supabase.rpc("cancel_deadline", { _id: item.id });
     if (error) toast.error(errMsg(error));
     else {
       toast.success("Scadenza annullata");
