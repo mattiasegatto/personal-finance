@@ -497,7 +497,6 @@ function TransferDialog({
   const eligibleAccounts = data.accounts.filter(
     (a) => !a.archived_at || a.id === transfer?.source_account_id || a.id === transfer?.destination_account_id,
   );
-  const currencies = new Set(eligibleAccounts.map((a) => a.currency));
   const [source, setSource] = useState(transfer?.source_account_id ?? eligibleAccounts[0]?.id ?? "");
   const [destination, setDestination] = useState(
     transfer?.destination_account_id ?? eligibleAccounts.find((a) => a.id !== (eligibleAccounts[0]?.id ?? ""))?.id ?? "",
