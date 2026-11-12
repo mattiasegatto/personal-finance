@@ -13,9 +13,9 @@ import { roleLabel, spacesQuery, type SpaceRole } from "@/lib/spaces";
 export const Route = createFileRoute("/_authenticated/impostazioni")({
   head: () => ({
     meta: [
-      { title: "Impostazioni e spazi — Fondo" },
+      { title: "Impostazioni e spazi — Personal Finance" },
       { name: "description", content: "Gestisci il tuo spazio personale e gli spazi condivisi." },
-      { property: "og:title", content: "Impostazioni e spazi — Fondo" },
+      { property: "og:title", content: "Impostazioni e spazi — Personal Finance" },
       {
         property: "og:description",
         content: "Gestisci il tuo spazio personale e gli spazi condivisi.",
