@@ -257,7 +257,6 @@ create policy "categories: owner/member creano" on public.categories for insert 
   with check (
     public.has_space_role(space_id, auth.uid(), array['owner','member']::public.space_role[])
     and exists (select 1 from public.spaces s where s.id=space_id and s.kind in ('personal','shared') and s.archived_at is null)
-    and (public.is_personal_space(space_id) or public.category_root_kind(id) is null)
   );
 create policy "categories: owner/member modificano" on public.categories for update to authenticated
   using (public.has_space_role(space_id, auth.uid(), array['owner','member']::public.space_role[]))
@@ -268,10 +267,13 @@ create policy "categories: owner/member modificano" on public.categories for upd
 
 create or replace function public.guard_shared_space_category() returns trigger
 language plpgsql security definer set search_path = public as $$
-declare sk public.space_kind;
+declare sk public.space_kind; root_kind public.category_kind;
 begin
   select kind into sk from public.spaces where id=new.space_id;
-  if sk='shared' and public.category_root_kind(new.id) is distinct from 'expense'::public.category_kind then
+  if new.parent_id is null then root_kind := new.kind;
+  else root_kind := public.category_root_kind(new.parent_id);
+  end if;
+  if sk='shared' and root_kind is distinct from 'expense'::public.category_kind then
     raise exception 'Gli spazi condivisi accettano solo categorie di spesa.';
   end if;
   return new;
