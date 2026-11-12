@@ -107,8 +107,7 @@ function summarize(data: Finance, month: string): CurrencySummary[] {
   return [...totals.values()]
     .map((total) => ({
       ...total,
-      netWorth:
-        total.liquidity + total.savings + total.investments - total.debts,
+      netWorth: total.liquidity + total.savings + total.investments - total.debts,
     }))
     .sort((a, b) => a.currency.localeCompare(b.currency));
 }
@@ -127,12 +126,16 @@ function Index() {
         <div className="rounded-2xl border border-dashed bg-card p-8 text-center">
           <h2 className="font-semibold">Inizia a costruire il tuo quadro finanziario</h2>
           <p className="mx-auto mt-2 max-w-xl text-sm text-muted-foreground">
-            Quando registrerai conti, movimenti, investimenti o debiti, qui troverai una
-            panoramica aggiornata dei tuoi dati.
+            Quando registrerai conti, movimenti, investimenti o debiti, qui troverai una panoramica
+            aggiornata dei tuoi dati.
           </p>
           <div className="mt-5 flex flex-wrap justify-center gap-2">
-            <Button asChild><Link to="/conti">Aggiungi un conto</Link></Button>
-            <Button asChild variant="outline"><Link to="/investimenti">Investimenti e debiti</Link></Button>
+            <Button asChild>
+              <Link to="/conti">Aggiungi un conto</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link to="/investimenti">Investimenti e debiti</Link>
+            </Button>
           </div>
         </div>
       ) : (
@@ -155,14 +158,28 @@ function Index() {
               <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <Metric label="Liquidità" value={summary.liquidity} currency={summary.currency} />
                 <Metric label="Risparmi" value={summary.savings} currency={summary.currency} />
-                <Metric label="Investimenti" value={summary.investments} currency={summary.currency} />
-                <Metric label="Debiti finanziari" value={-summary.debts} currency={summary.currency} negative />
+                <Metric
+                  label="Investimenti"
+                  value={summary.investments}
+                  currency={summary.currency}
+                />
+                <Metric
+                  label="Debiti finanziari"
+                  value={-summary.debts}
+                  currency={summary.currency}
+                  negative
+                />
               </div>
               <div className="mt-5 border-t pt-4">
                 <p className="text-sm font-medium">Flussi di {monthName(now)}</p>
                 <div className="mt-3 grid gap-3 sm:grid-cols-3">
                   <Metric label="Entrate" value={summary.income} currency={summary.currency} />
-                  <Metric label="Uscite" value={-summary.expenses} currency={summary.currency} negative />
+                  <Metric
+                    label="Uscite"
+                    value={-summary.expenses}
+                    currency={summary.currency}
+                    negative
+                  />
                   <Metric
                     label="Saldo del mese"
                     value={summary.income - summary.expenses}
@@ -181,7 +198,9 @@ function Index() {
       <div className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-primary p-6 text-primary-foreground">
         <div>
           <p className="font-display text-xl">Spese condivise</p>
-          <p className="text-sm opacity-80">Vai alla gestione delle spese e dei rimborsi condivisi.</p>
+          <p className="text-sm opacity-80">
+            Vai alla gestione delle spese e dei rimborsi condivisi.
+          </p>
         </div>
         <Button asChild variant="secondary">
           <Link to="/spese-condivise">Apri</Link>
