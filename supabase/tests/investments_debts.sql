@@ -35,9 +35,9 @@ begin
     or (select amount_cents from public.net_worth_totals where space_id=sa and component='debt')<>600000 then
     raise exception 'FAIL aggiornamento valori correnti'; end if; n:=n+1;
 
-  begin update public.financial_debts set outstanding_balance_cents=1100000 where id=did; ok:=false;
+  begin update public.financial_debts set outstanding_balance_cents=-1 where id=did; ok:=false;
   exception when others then ok:=true; end;
-  if not ok then raise exception 'FAIL residuo superiore al capitale accettato'; end if; n:=n+1;
+  if not ok then raise exception 'FAIL residuo negativo accettato'; end if; n:=n+1;
   begin insert into public.investments(space_id,name,current_value_cents,currency) values(sa,'Valore negativo',-1,'EUR'); ok:=false;
   exception when others then ok:=true; end;
   if not ok then raise exception 'FAIL valore investimento negativo accettato'; end if; n:=n+1;
