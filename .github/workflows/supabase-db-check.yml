@@ -61,6 +61,19 @@ jobs:
             exit 1
           fi
 
+      - name: Run shared expenses integrity and isolation tests
+        shell: bash
+        run: |
+          set +e
+          output=$(docker exec -i supabase_db_fwpycxrnkzaguulxkcqt psql --username postgres --dbname postgres --set ON_ERROR_STOP=0 < supabase/tests/shared_expenses.sql 2>&1)
+          status=$?
+          set -e
+          printf '%s\\n' "$output"
+          if ! grep -q 'ALL_PASSED:' <<< "$output"; then
+            echo "Shared expenses checks did not reach their expected success marker (psql exit: $status)."
+            exit 1
+          fi
+
       - name: Run investment and debt integrity and isolation tests
         shell: bash
         run: |
