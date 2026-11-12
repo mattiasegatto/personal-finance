@@ -52,7 +52,7 @@ begin
   if not ok then raise exception 'FAIL cambio pagatore con movimento collegato'; end if; n:=n+1;
 
   perform public.unlink_shared_expense_transaction(v_expense_id);
-  perform public.save_shared_expense(expense_id,sh,current_date,'Cambio pagatore',cat_id,10000,ub,'equal',
+  perform public.save_shared_expense(v_expense_id,sh,current_date,'Cambio pagatore',cat_id,10000,ub,'equal',
     jsonb_build_array(jsonb_build_object('member_user_id',ua,'amount_cents',5000),jsonb_build_object('member_user_id',ub,'amount_cents',5000)),null);
   if (select paid_by_user_id from public.shared_expenses where id=v_expense_id)<>ub then raise exception 'FAIL cambio pagatore dopo unlink'; end if; n:=n+1;
 
@@ -68,14 +68,17 @@ begin
     or not exists(select 1 from public.shared_settlements where id=settlement_id) then
     raise exception 'FAIL membro non legge dati condivisi'; end if; n:=n+1;
   if exists(select 1 from public.transactions where id=tx_id) then raise exception 'FAIL membro vede movimento personale altrui'; end if; n:=n+1;
-  update public.shared_expenses set description='Tentativo modifica' where id=expense_id;
-  if (select description from public.shared_expenses where id=expense_id)<>'Cambio pagatore' then
-    raise exception 'FAIL viewer/member isolation?'; end if; n:=n+1;
+  begin
+    update public.shared_expenses set description='Tentativo modifica' where id=v_expense_id;
+    ok:=false;
+  exception when others then ok:=true; end;
+  if not ok or (select description from public.shared_expenses where id=v_expense_id)<>'Cambio pagatore' then
+    raise exception 'FAIL membro non autorizzato a modificare la spesa'; end if; n:=n+1;
 
   execute 'reset role';
   perform set_config('request.jwt.claims',json_build_object('sub',ua,'role','authenticated','email','shared-a@test.local')::text,true);
   execute 'set local role authenticated';
-  perform public.delete_shared_expense(expense_id);
+  perform public.delete_shared_expense(v_expense_id);
   if not exists(select 1 from public.shared_expenses where id=v_expense_id and deleted_at is not null) then
     raise exception 'FAIL annullamento spesa'; end if; n:=n+1;
   execute 'reset role';
