@@ -157,11 +157,13 @@ function SharedPage() {
     const ds = debtors.map((m) => ({ id: m.user_id, left: -(balances[m.user_id] ?? 0) }));
     const cs = creditors.map((m) => ({ id: m.user_id, left: balances[m.user_id] ?? 0 }));
     const result: { from: string; to: string; amount: number }[] = [];
-    let di = 0, ci = 0;
+    let di = 0,
+      ci = 0;
     while (di < ds.length && ci < cs.length) {
       const amount = Math.min(ds[di].left, cs[ci].left);
       if (amount > 0) result.push({ from: ds[di].id, to: cs[ci].id, amount });
-      ds[di].left -= amount; cs[ci].left -= amount;
+      ds[di].left -= amount;
+      cs[ci].left -= amount;
       if (ds[di].left === 0) di++;
       if (cs[ci].left === 0) ci++;
     }
@@ -305,12 +307,14 @@ function SharedPage() {
               <div className="mt-2 space-y-2">
                 {suggestions.map((s, i) => (
                   <p key={s.from + s.to + i} className="text-sm">
-                    <strong>{members.find((m) => m.user_id === s.from)?.name}</strong> deve versare a{" "}
-                    <strong>{members.find((m) => m.user_id === s.to)?.name}</strong>{" "}
+                    <strong>{members.find((m) => m.user_id === s.from)?.name}</strong> deve versare
+                    a <strong>{members.find((m) => m.user_id === s.to)?.name}</strong>{" "}
                     <strong className="num">{money(s.amount)}</strong>
                   </p>
                 ))}
-                <p className="text-xs text-muted-foreground">Proposta di pareggio per tutti i partecipanti.</p>
+                <p className="text-xs text-muted-foreground">
+                  Proposta di pareggio per tutti i partecipanti.
+                </p>
               </div>
             ) : (
               <p className="mt-2 font-semibold">Tutti i saldi sono in pari.</p>
@@ -568,10 +572,13 @@ function ExpenseDialog({
     queryKey: ["personal-outflows-for-link", personalSpaceId],
     enabled: !!personalSpaceId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("transactions")
+      const { data, error } = await supabase
+        .from("transactions")
         .select("id,occurred_on,description,amount_cents")
-        .eq("space_id", personalSpaceId!).eq("direction", "outflow")
-        .is("deleted_at", null).order("occurred_on", { ascending: false });
+        .eq("space_id", personalSpaceId!)
+        .eq("direction", "outflow")
+        .is("deleted_at", null)
+        .order("occurred_on", { ascending: false });
       if (error) throw error;
       return data ?? [];
     },
@@ -785,7 +792,9 @@ function SettlementDialog({
       initial
         ? (initial.amount_cents / 100).toFixed(2).replace(".", ",")
         : debtor && creditor
-          ? (Math.min(-(balances[debtor.user_id] ?? 0), balances[creditor.user_id] ?? 0) / 100).toFixed(2).replace(".", ",")
+          ? (Math.min(-(balances[debtor.user_id] ?? 0), balances[creditor.user_id] ?? 0) / 100)
+              .toFixed(2)
+              .replace(".", ",")
           : "",
     ),
     [note, setNote] = useState(initial?.note ?? ""),
@@ -794,10 +803,13 @@ function SettlementDialog({
     queryKey: ["personal-outflows-for-link", personalSpaceId],
     enabled: !!personalSpaceId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("transactions")
+      const { data, error } = await supabase
+        .from("transactions")
         .select("id,occurred_on,description,amount_cents")
-        .eq("space_id", personalSpaceId!).eq("direction", "outflow")
-        .is("deleted_at", null).order("occurred_on", { ascending: false });
+        .eq("space_id", personalSpaceId!)
+        .eq("direction", "outflow")
+        .is("deleted_at", null)
+        .order("occurred_on", { ascending: false });
       if (error) throw error;
       return data ?? [];
     },
