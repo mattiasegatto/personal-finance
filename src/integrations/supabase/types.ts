@@ -565,9 +565,8 @@ export type Database = {
           },
         ];
       };
-    };
 
-    shared_expenses: {
+      shared_expenses: {
       Row: {
         id: string;
         space_id: string;
@@ -668,6 +667,7 @@ export type Database = {
         updated_at?: string;
       };
       Relationships: [];
+      };
     };
     Views: {
       net_worth_totals: {
