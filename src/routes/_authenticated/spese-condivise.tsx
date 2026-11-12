@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useMemo, useState, type FormEvent } from "react";
 import { toast } from "sonner";
-import { ArrowRight, Handshake, Plus, ShieldCheck, Trash2 } from "lucide-react";
+import { ArrowRight, Handshake, Pencil, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/page";
 import { Button } from "@/components/ui/button";
@@ -62,7 +62,9 @@ function SharedPage() {
   const space = spaces.find((s) => s.id === selected) ?? spaces[0];
   const qc = useQueryClient();
   const [expenseOpen, setExpenseOpen] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [settlementOpen, setSettlementOpen] = useState(false);
+  const [editingSettlement, setEditingSettlement] = useState<Settlement | null>(null);
   const [period, setPeriod] = useState("all");
   const [person, setPerson] = useState("all");
   const q = useQuery({
@@ -229,13 +231,13 @@ function SharedPage() {
         </Select>
         {canEdit && (
           <>
-            <Button onClick={() => setExpenseOpen(true)}>
+            <Button onClick={() => { setEditingExpense(null); setExpenseOpen(true); }}>
               <Plus className="mr-2 h-4 w-4" />
               Nuova spesa
             </Button>
-            <Button variant="outline" onClick={() => setSettlementOpen(true)}>
+            <Button variant="outline" onClick={() => { setEditingSettlement(null); setSettlementOpen(true); }}>
               <Handshake className="mr-2 h-4 w-4" />
-              Registra rimborso
+              {initial ? "Salva modifiche" : "Registra rimborso"}
             </Button>
           </>
         )}
@@ -342,6 +344,11 @@ function SharedPage() {
                     <span className="text-xs text-muted-foreground">Collegata</span>
                   )}
                   {canEdit && (
+                    <Button size="icon" variant="ghost" aria-label="Modifica spesa" onClick={() => { setEditingExpense(e); setExpenseOpen(true); }}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  )}
+                  {canEdit && (
                     <Button
                       size="icon"
                       variant="ghost"
@@ -377,6 +384,11 @@ function SharedPage() {
                   </span>
                   <strong className="num">{money(s.amount_cents)}</strong>
                   {canEdit && (
+                    <Button size="icon" variant="ghost" aria-label="Modifica rimborso" onClick={() => { setEditingSettlement(s); setSettlementOpen(true); }}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  )}
+                  {canEdit && (
                     <Button
                       size="icon"
                       variant="ghost"
@@ -400,7 +412,8 @@ function SharedPage() {
           members={members}
           categories={data?.categories ?? []}
           uid={spacesData.uid!}
-          onClose={() => setExpenseOpen(false)}
+          initial={editingExpense ?? undefined}
+          onClose={() => { setExpenseOpen(false); setEditingExpense(null); }}
           onSaved={refresh}
         />
       )}
@@ -410,7 +423,8 @@ function SharedPage() {
           members={members}
           balances={balances}
           uid={spacesData.uid!}
-          onClose={() => setSettlementOpen(false)}
+          initial={editingSettlement ?? undefined}
+          onClose={() => { setSettlementOpen(false); setEditingSettlement(null); }}
           onSaved={refresh}
         />
       )}
@@ -446,6 +460,7 @@ function ExpenseDialog({
   members,
   categories,
   uid,
+  initial,
   onClose,
   onSaved,
 }: {
@@ -453,18 +468,21 @@ function ExpenseDialog({
   members: Member[];
   categories: Category[];
   uid: string;
+  initial?: Expense;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const active = members.filter((m) => m.role !== "viewer");
-  const [date, setDate] = useState(today()),
-    [description, setDescription] = useState(""),
-    [amount, setAmount] = useState(""),
-    [payer, setPayer] = useState(uid),
+  const [date, setDate] = useState(initial?.occurred_on ?? today()),
+    [description, setDescription] = useState(initial?.description ?? ""),
+    [amount, setAmount] = useState(initial ? (initial.amount_cents / 100).toFixed(2).replace(".", ",") : ""),
+    [payer, setPayer] = useState(initial?.paid_by_user_id ?? uid),
     [category, setCategory] = useState(
-      categories.find((c) => c.parent_id)?.id ?? categories[0]?.id ?? "",
+      initial?.category_id ?? categories.find((c) => c.parent_id)?.id ?? categories[0]?.id ?? "",
     ),
-    [shares, setShares] = useState<Record<string, string>>({}),
+    [shares, setShares] = useState<Record<string, string>>(
+      initial ? Object.fromEntries(initial.shares.map((s) => [s.member_user_id, (s.amount_cents / 100).toFixed(2).replace(".", ",")])) : {},
+    ),
     [busy, setBusy] = useState(false);
   const cents = parseCents(amount);
   const equal = active.length && cents !== null ? Math.floor(cents / active.length) : 0;
@@ -487,7 +505,7 @@ function ExpenseDialog({
     }
     setBusy(true);
     const { error } = await supabase.rpc("save_shared_expense", {
-      _id: null,
+      _id: initial?.id ?? null,
       _space_id: spaceId,
       _occurred_on: date,
       _description: description.trim(),
@@ -496,7 +514,7 @@ function ExpenseDialog({
       _paid_by_user_id: payer,
       _split_mode: Object.keys(shares).length ? "amount" : "equal",
       _shares: split,
-      _linked_transaction_id: null,
+      _linked_transaction_id: initial?.linked_transaction_id ?? null,
     });
     setBusy(false);
     if (error) toast.error(error.message);
@@ -507,7 +525,7 @@ function ExpenseDialog({
     }
   };
   return (
-    <Modal title="Nuova spesa condivisa" onClose={onClose}>
+    <Modal title={initial ? "Modifica spesa condivisa" : "Nuova spesa condivisa"} onClose={onClose}>
       <form onSubmit={save} className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -596,7 +614,7 @@ function ExpenseDialog({
             type="submit"
             disabled={busy || !cents || cents <= 0 || !description.trim() || !category}
           >
-            Salva spesa
+            {initial ? "Salva modifiche" : "Salva spesa"}
           </Button>
         </div>
       </form>
@@ -608,6 +626,7 @@ function SettlementDialog({
   members,
   balances,
   uid,
+  initial,
   onClose,
   onSaved,
 }: {
@@ -615,24 +634,23 @@ function SettlementDialog({
   members: Member[];
   balances: Record<string, number>;
   uid: string;
+  initial?: Settlement;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const debtor = members.find((m) => (balances[m.user_id] ?? 0) < 0),
     creditor = members.find((m) => (balances[m.user_id] ?? 0) > 0);
-  const [from, setFrom] = useState(debtor?.user_id ?? uid),
+  const [from, setFrom] = useState(initial?.from_user_id ?? debtor?.user_id ?? uid),
     [to, setTo] = useState(
-      creditor?.user_id ?? members.find((m) => m.user_id !== uid)?.user_id ?? "",
+      initial?.to_user_id ?? creditor?.user_id ?? members.find((m) => m.user_id !== uid)?.user_id ?? "",
     ),
-    [date, setDate] = useState(today()),
+    [date, setDate] = useState(initial?.occurred_on ?? today()),
     [amount, setAmount] = useState(
-      debtor && creditor
-        ? (Math.min(-(balances[debtor.user_id] ?? 0), balances[creditor.user_id] ?? 0) / 100)
-            .toFixed(2)
-            .replace(".", ",")
+      initial ? (initial.amount_cents / 100).toFixed(2).replace(".", ",") : debtor && creditor
+        ? (Math.min(-(balances[debtor.user_id] ?? 0), balances[creditor.user_id] ?? 0) / 100).toFixed(2).replace(".", ",")
         : "",
     ),
-    [note, setNote] = useState(""),
+    [note, setNote] = useState(initial?.note ?? ""),
     [busy, setBusy] = useState(false);
   const cents = parseCents(amount);
   const save = async (e: FormEvent) => {
@@ -640,13 +658,13 @@ function SettlementDialog({
     if (!cents || cents <= 0 || from === to) return;
     setBusy(true);
     const { error } = await supabase.rpc("save_shared_settlement", {
-      _id: null,
+      _id: initial?.id ?? null,
       _space_id: spaceId,
       _occurred_on: date,
       _from_user_id: from,
       _to_user_id: to,
       _amount_cents: cents,
-      _kind: "rimborso",
+      _kind: initial?.kind ?? "rimborso",
       _note: note.trim() || null,
       _linked_transaction_id: null,
     });
@@ -659,7 +677,7 @@ function SettlementDialog({
     }
   };
   return (
-    <Modal title="Registra un rimborso" onClose={onClose}>
+    <Modal title={initial ? "Modifica rimborso" : "Registra un rimborso"} onClose={onClose}>
       <form onSubmit={save} className="space-y-3">
         <div>
           <Label>Chi paga</Label>
