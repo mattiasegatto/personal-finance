@@ -285,6 +285,9 @@ begin
 
   update public.transfers set source_transaction_id = stx, destination_transaction_id = dtx
   where id = tid;
+
+  -- Il permesso temporaneo vale solo durante questa RPC, non per il resto della transazione.
+  perform set_config('app.transfer_rpc', 'off', true);
   return tid;
 end $function$;
 
@@ -339,6 +342,8 @@ begin
   update public.transactions
   set account_id = da.id, amount_cents = _amount_cents, occurred_on = _occurred_on, description = descr
   where id = t.destination_transaction_id;
+
+  perform set_config('app.transfer_rpc', 'off', true);
 end $function$;
 
 -- 12. RPC: annullamento logico (consentito anche con conti archiviati)
@@ -359,6 +364,8 @@ begin
   update public.transfers set deleted_at = now() where id = t.id;
   update public.transactions set deleted_at = now()
   where id in (t.source_transaction_id, t.destination_transaction_id);
+
+  perform set_config('app.transfer_rpc', 'off', true);
 end $function$;
 
 -- 13. Privilegi: RPC solo agli autenticati; funzioni interne non richiamabili
