@@ -222,22 +222,99 @@ export type Database = {
         Relationships: [];
       };
       transfers: {
-        Row: { amount_cents: number; created_at: string; created_by: string; deleted_at: string | null; description: string | null; destination_account_id: string; destination_transaction_id: string | null; id: string; occurred_on: string; source_account_id: string; source_transaction_id: string | null; space_id: string; updated_at: string; };
-        Insert: { amount_cents: number; created_at?: string; created_by?: string; deleted_at?: string | null; description?: string | null; destination_account_id: string; destination_transaction_id?: string | null; id?: string; occurred_on: string; source_account_id: string; source_transaction_id?: string | null; space_id: string; updated_at?: string; };
-        Update: { amount_cents?: number; created_at?: string; created_by?: string; deleted_at?: string | null; description?: string | null; destination_account_id?: string; destination_transaction_id?: string | null; id?: string; occurred_on?: string; source_account_id?: string; source_transaction_id?: string | null; space_id?: string; updated_at?: string; };
+        Row: {
+          amount_cents: number;
+          created_at: string;
+          created_by: string;
+          deleted_at: string | null;
+          description: string | null;
+          destination_account_id: string;
+          destination_transaction_id: string | null;
+          id: string;
+          occurred_on: string;
+          source_account_id: string;
+          source_transaction_id: string | null;
+          space_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          amount_cents: number;
+          created_at?: string;
+          created_by?: string;
+          deleted_at?: string | null;
+          description?: string | null;
+          destination_account_id: string;
+          destination_transaction_id?: string | null;
+          id?: string;
+          occurred_on: string;
+          source_account_id: string;
+          source_transaction_id?: string | null;
+          space_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          amount_cents?: number;
+          created_at?: string;
+          created_by?: string;
+          deleted_at?: string | null;
+          description?: string | null;
+          destination_account_id?: string;
+          destination_transaction_id?: string | null;
+          id?: string;
+          occurred_on?: string;
+          source_account_id?: string;
+          source_transaction_id?: string | null;
+          space_id?: string;
+          updated_at?: string;
+        };
         Relationships: [
-          { foreignKeyName: "transfers_destination_account_id_fkey"; columns: ["destination_account_id"]; isOneToOne: false; referencedRelation: "accounts"; referencedColumns: ["id"]; },
-          { foreignKeyName: "transfers_source_account_id_fkey"; columns: ["source_account_id"]; isOneToOne: false; referencedRelation: "accounts"; referencedColumns: ["id"]; },
-          { foreignKeyName: "transfers_space_id_fkey"; columns: ["space_id"]; isOneToOne: false; referencedRelation: "spaces"; referencedColumns: ["id"]; }
+          {
+            foreignKeyName: "transfers_destination_account_id_fkey";
+            columns: ["destination_account_id"];
+            isOneToOne: false;
+            referencedRelation: "accounts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "transfers_source_account_id_fkey";
+            columns: ["source_account_id"];
+            isOneToOne: false;
+            referencedRelation: "accounts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "transfers_space_id_fkey";
+            columns: ["space_id"];
+            isOneToOne: false;
+            referencedRelation: "spaces";
+            referencedColumns: ["id"];
+          },
         ];
       };
       transfer_transaction_links: {
-        Row: { created_at: string; role: string; transaction_id: string; transfer_id: string; };
-        Insert: { created_at?: string; role: string; transaction_id: string; transfer_id: string; };
-        Update: { created_at?: string; role?: string; transaction_id?: string; transfer_id?: string; };
+        Row: { created_at: string; role: string; transaction_id: string; transfer_id: string };
+        Insert: { created_at?: string; role: string; transaction_id: string; transfer_id: string };
+        Update: {
+          created_at?: string;
+          role?: string;
+          transaction_id?: string;
+          transfer_id?: string;
+        };
         Relationships: [
-          { foreignKeyName: "transfer_transaction_links_transfer_id_fkey"; columns: ["transfer_id"]; isOneToOne: false; referencedRelation: "transfers"; referencedColumns: ["id"]; },
-          { foreignKeyName: "transfer_transaction_links_transaction_id_fkey"; columns: ["transaction_id"]; isOneToOne: true; referencedRelation: "transactions"; referencedColumns: ["id"]; }
+          {
+            foreignKeyName: "transfer_transaction_links_transfer_id_fkey";
+            columns: ["transfer_id"];
+            isOneToOne: false;
+            referencedRelation: "transfers";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "transfer_transaction_links_transaction_id_fkey";
+            columns: ["transaction_id"];
+            isOneToOne: true;
+            referencedRelation: "transactions";
+            referencedColumns: ["id"];
+          },
         ];
       };
       transaction_revisions: {
@@ -379,8 +456,27 @@ export type Database = {
     };
     Functions: {
       accept_invitation: { Args: { _invitation: string }; Returns: string };
-      create_transfer: { Args: { _amount_cents: number; _description?: string | null; _destination_account: string; _occurred_on: string; _source_account: string }; Returns: string };
-      update_transfer: { Args: { _amount_cents: number; _description?: string | null; _destination_account: string; _occurred_on: string; _source_account: string; _transfer: string }; Returns: undefined };
+      create_transfer: {
+        Args: {
+          _amount_cents: number;
+          _description?: string | null;
+          _destination_account: string;
+          _occurred_on: string;
+          _source_account: string;
+        };
+        Returns: string;
+      };
+      update_transfer: {
+        Args: {
+          _amount_cents: number;
+          _description?: string | null;
+          _destination_account: string;
+          _occurred_on: string;
+          _source_account: string;
+          _transfer: string;
+        };
+        Returns: undefined;
+      };
       delete_transfer: { Args: { _transfer: string }; Returns: undefined };
       category_root_kind: {
         Args: { _cat: string };
