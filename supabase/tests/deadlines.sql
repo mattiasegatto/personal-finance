@@ -13,14 +13,16 @@ begin
  values(s,a,c,'outflow',4567,'Bolletta test',current_date) returning id into d;
  begin
    update public.accounts set archived_at=now() where id=a;
-   raise exception 'Archiviazione conto con scadenza aperta non bloccata';
+   raise exception 'TEST_FAILURE_ACCOUNT_ARCHIVE_WAS_ALLOWED';
  exception when others then
+   if sqlerrm = 'TEST_FAILURE_ACCOUNT_ARCHIVE_WAS_ALLOWED' then raise; end if;
    if sqlerrm not like '%scadenza aperta%' then raise; end if;
  end;
  begin
    update public.categories set archived_at=now() where id=c;
-   raise exception 'Archiviazione categoria con scadenza aperta non bloccata';
+   raise exception 'TEST_FAILURE_CATEGORY_ARCHIVE_WAS_ALLOWED';
  exception when others then
+   if sqlerrm = 'TEST_FAILURE_CATEGORY_ARCHIVE_WAS_ALLOWED' then raise; end if;
    if sqlerrm not like '%scadenza aperta%' then raise; end if;
  end;
  tx:=public.complete_deadline(d);
