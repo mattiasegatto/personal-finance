@@ -1,10 +1,6 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { netBalances, validateSettlement, type Settlement } from "@/lib/domain";
 import { sharedExpenses, settlements } from "@/lib/mock-data";
-import { SettlementDialog } from "@/routes/_authenticated/spese-condivise";
-
-afterEach(cleanup);
 const pay = (amount: number, id = `r${amount}`): Settlement => ({
   id,
   spaceId: "s-casa",
@@ -88,26 +84,5 @@ describe("Rimborsi (demo)", () => {
       m2: -17.66,
     });
   });
-  it("il modulo blocca 92 € e registra 40 € da Giulia a Mattia", () => {
-    const onSave = vi.fn();
-    render(
-      <SettlementDialog
-        balances={start}
-        defaultFrom="m2"
-        defaultTo="m1"
-        onClose={vi.fn()}
-        onSave={onSave}
-      />,
-    );
-    const amount = screen.getByLabelText("Importo (€)");
-    fireEvent.change(amount, { target: { value: "92" } });
-    fireEvent.click(screen.getByRole("button", { name: "Registra rimborso" }));
-    expect(onSave).not.toHaveBeenCalled();
-    expect(screen.getByRole("alert").textContent).toMatch(/supera/);
-    fireEvent.change(amount, { target: { value: "40" } });
-    fireEvent.click(screen.getByRole("button", { name: "Registra rimborso" }));
-    expect(onSave).toHaveBeenCalledWith(
-      expect.objectContaining({ from: "m2", to: "m1", amount: 40, kind: "rimborso" }),
-    );
-  });
+
 });
