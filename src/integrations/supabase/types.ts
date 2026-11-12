@@ -103,6 +103,48 @@ export type Database = {
           },
         ];
       };
+      investments: {
+        Row: {
+          archived_at: string | null; created_at: string; created_by: string; currency: string;
+          current_value_cents: number; id: string; invested_amount_cents: number; name: string;
+          notes: string | null; quantity: number | null; space_id: string; ticker: string | null;
+          type: Database["public"]["Enums"]["investment_type"]; updated_at: string; valuation_date: string;
+        };
+        Insert: {
+          archived_at?: string | null; created_at?: string; created_by?: string; currency?: string;
+          current_value_cents: number; id?: string; invested_amount_cents?: number; name: string;
+          notes?: string | null; quantity?: number | null; space_id: string; ticker?: string | null;
+          type?: Database["public"]["Enums"]["investment_type"]; updated_at?: string; valuation_date?: string;
+        };
+        Update: {
+          archived_at?: string | null; created_at?: string; created_by?: string; currency?: string;
+          current_value_cents?: number; id?: string; invested_amount_cents?: number; name?: string;
+          notes?: string | null; quantity?: number | null; space_id?: string; ticker?: string | null;
+          type?: Database["public"]["Enums"]["investment_type"]; updated_at?: string; valuation_date?: string;
+        };
+        Relationships: [{ foreignKeyName: "investments_space_id_fkey"; columns: ["space_id"]; isOneToOne: false; referencedRelation: "spaces"; referencedColumns: ["id"]; }];
+      };
+      financial_debts: {
+        Row: {
+          annual_interest_rate: number | null; archived_at: string | null; created_at: string; created_by: string;
+          currency: string; due_on: string | null; id: string; lender: string | null; monthly_payment_cents: number | null;
+          name: string; notes: string | null; original_principal_cents: number; outstanding_balance_cents: number;
+          space_id: string; started_on: string | null; type: Database["public"]["Enums"]["debt_type"]; updated_at: string;
+        };
+        Insert: {
+          annual_interest_rate?: number | null; archived_at?: string | null; created_at?: string; created_by?: string;
+          currency?: string; due_on?: string | null; id?: string; lender?: string | null; monthly_payment_cents?: number | null;
+          name: string; notes?: string | null; original_principal_cents: number; outstanding_balance_cents: number;
+          space_id: string; started_on?: string | null; type?: Database["public"]["Enums"]["debt_type"]; updated_at?: string;
+        };
+        Update: {
+          annual_interest_rate?: number | null; archived_at?: string | null; created_at?: string; created_by?: string;
+          currency?: string; due_on?: string | null; id?: string; lender?: string | null; monthly_payment_cents?: number | null;
+          name?: string; notes?: string | null; original_principal_cents?: number; outstanding_balance_cents?: number;
+          space_id?: string; started_on?: string | null; type?: Database["public"]["Enums"]["debt_type"]; updated_at?: string;
+        };
+        Relationships: [{ foreignKeyName: "financial_debts_space_id_fkey"; columns: ["space_id"]; isOneToOne: false; referencedRelation: "spaces"; referencedColumns: ["id"]; }];
+      };
       profiles: {
         Row: {
           created_at: string;
@@ -437,6 +479,10 @@ export type Database = {
       };
     };
     Views: {
+      net_worth_totals: {
+        Row: { amount_cents: number | null; component: string | null; currency: string | null; space_id: string | null };
+        Relationships: [{ foreignKeyName: "investments_space_id_fkey"; columns: ["space_id"]; isOneToOne: false; referencedRelation: "spaces"; referencedColumns: ["id"]; }];
+      };
       account_balances: {
         Row: {
           account_id: string | null;
@@ -517,6 +563,8 @@ export type Database = {
     Enums: {
       account_type: "checking" | "savings" | "card" | "cash" | "other";
       category_kind: "income" | "expense";
+      investment_type: "etf" | "stock" | "bond" | "fund" | "crypto" | "other";
+      debt_type: "mortgage" | "loan" | "financing" | "other";
       invitation_status: "pending" | "accepted" | "revoked";
       space_kind: "personal" | "shared";
       space_role: "owner" | "member" | "viewer";
