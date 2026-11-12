@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -57,7 +57,8 @@ type Recurrence = {
   end_on: string | null;
   active: boolean;
 };
-const ALL = "__all";
+const ALL = "__all__";
+const db = supabase as any;
 const money = (c: number, currency: string) =>
   new Intl.NumberFormat("it-IT", { style: "currency", currency }).format(c / 100);
 const dateLabel = (s: string) =>
@@ -95,11 +96,11 @@ function Recurring() {
   const categoryName = (id: string) => data.categories.find((c) => c.id === id)?.label ?? "—";
   const act = async (item: Recurrence, confirm: boolean) => {
     const result = confirm
-      ? await supabase.rpc("confirm_recurring_item", {
+      ? await db.rpc("confirm_recurring_item", {
           _id: item.id,
           _expected_due: item.next_due_on,
         })
-      : await supabase.rpc("advance_recurring_due", {
+      : await db.rpc("advance_recurring_due", {
           _id: item.id,
           _expected_due: item.next_due_on,
         });
@@ -248,7 +249,7 @@ function RecurringDialog({
     if (!description.trim() || !cents || !account || !category || !start)
       return void toast.error("Completa tutti i campi obbligatori.");
     setBusy(true);
-    const { error } = await supabase.from("recurring_items").insert({
+    const { error } = await db.from("recurring_items").insert({
       space_id: data.spaceId,
       account_id: account,
       category_id: category,
