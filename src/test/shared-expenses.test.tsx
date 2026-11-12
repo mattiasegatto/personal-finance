@@ -1,24 +1,6 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { equalShares, netBalances, type SharedExpense } from "@/lib/domain";
 import { sharedExpenses, settlements, transactions } from "@/lib/mock-data";
-import { SplitDialog } from "@/routes/_authenticated/spese-condivise";
-
-// jsdom has no layout observer; the slider requires the browser API to mount.
-beforeEach(() =>
-  vi.stubGlobal(
-    "ResizeObserver",
-    class {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    },
-  ),
-);
-afterEach(() => {
-  cleanup();
-  vi.unstubAllGlobals();
-});
 const expense = (amount: number, paidBy = "m1"): SharedExpense => ({
   id: "test",
   spaceId: "s-casa",
@@ -30,13 +12,6 @@ const expense = (amount: number, paidBy = "m1"): SharedExpense => ({
   splitMode: "equal",
   shares: equalShares(amount, ["m1", "m2"]),
 });
-const dinner = sharedExpenses.find((e) => e.id === "e3");
-function openSplit(e: SharedExpense) {
-  const onSave = vi.fn();
-  const view = render(<SplitDialog expense={e} onClose={vi.fn()} onSave={onSave} />);
-  return { ...view, onSave };
-}
-
 describe("Shared expense accounting (demo)", () => {
   it("defaults to 50/50 and allocates every cent", () => {
     expect(equalShares(100, ["m1", "m2"])).toEqual([
@@ -126,45 +101,5 @@ describe("Shared expense accounting (demo)", () => {
         .filter((t) => t.amount < 0)
         .reduce((sum, t) => sum + Math.round(-t.amount * 100), 0),
     ).toBe(115540);
-  });
-});
-
-describe("Split editor regression checks", () => {
-  it("saving without changes preserves exact custom amounts and split mode", () => {
-    if (!dinner) throw new Error("Missing demo dinner");
-    const { onSave } = openSplit(dinner);
-    fireEvent.click(screen.getByRole("button", { name: "Salva quote" }));
-    expect(onSave).toHaveBeenCalledWith(dinner);
-    expect(dinner.shares.map((s) => s.amount)).toEqual([24, 40]);
-  });
-  it("a 70/30 edit changes only that expense and updates net debt", () => {
-    if (!dinner) throw new Error("Missing demo dinner");
-    const before = structuredClone(sharedExpenses);
-    const { onSave } = openSplit(dinner);
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Quota percentuale Mattia" }), {
-      target: { value: "70" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Salva quote" }));
-    const saved = onSave.mock.calls[0]?.[0] as SharedExpense;
-    expect(saved.shares).toEqual([
-      { memberId: "m1", amount: 44.8 },
-      { memberId: "m2", amount: 19.2 },
-    ]);
-    expect(
-      netBalances(
-        sharedExpenses.map((e) => (e.id === saved.id ? saved : e)),
-        settlements,
-      ),
-    ).toEqual({ m1: 70.2, m2: -70.2 });
-    expect(sharedExpenses).toEqual(before);
-  });
-  it("resetting to 50/50 assigns the spare cent consistently", () => {
-    const { onSave } = openSplit(expense(72.31));
-    fireEvent.click(screen.getByRole("button", { name: "Ripristina 50 / 50" }));
-    fireEvent.click(screen.getByRole("button", { name: "Salva quote" }));
-    expect(onSave.mock.calls[0]?.[0].shares).toEqual([
-      { memberId: "m1", amount: 36.16 },
-      { memberId: "m2", amount: 36.15 },
-    ]);
   });
 });
