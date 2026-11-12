@@ -263,18 +263,16 @@ function DeadlineDialog({
     if (!title.trim() || !cents || !account || !category || !due)
       return void toast.error("Completa tutti i campi obbligatori.");
     setBusy(true);
-    const { error } = await db
-      .from("deadlines")
-      .insert({
-        space_id: data.spaceId,
-        account_id: account,
-        category_id: category,
-        direction,
-        amount_cents: cents,
-        title: title.trim(),
-        due_on: due,
-        notes: notes.trim() || null,
-      });
+    const { error } = await db.from("deadlines").insert({
+      space_id: data.spaceId,
+      account_id: account,
+      category_id: category,
+      direction,
+      amount_cents: cents,
+      title: title.trim(),
+      due_on: due,
+      notes: notes.trim() || null,
+    });
     setBusy(false);
     if (error) return void toast.error(errMsg(error));
     toast.success("Scadenza creata");

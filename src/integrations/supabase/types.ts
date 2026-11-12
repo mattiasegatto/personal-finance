@@ -669,54 +669,114 @@ export type Database = {
         Relationships: [];
       };
     };
-      recurring_items: {
-        Row: {
-          id: string; space_id: string; account_id: string; category_id: string;
-          direction: Database["public"]["Enums"]["tx_direction"]; amount_cents: number;
-          description: string; frequency: Database["public"]["Enums"]["recurrence_frequency"];
-          start_on: string; next_due_on: string; end_on: string | null; active: boolean;
-          created_by: string; created_at: string; updated_at: string;
-        };
-        Insert: {
-          id?: string; space_id: string; account_id: string; category_id: string;
-          direction: Database["public"]["Enums"]["tx_direction"]; amount_cents: number;
-          description: string; frequency: Database["public"]["Enums"]["recurrence_frequency"];
-          start_on: string; next_due_on: string; end_on?: string | null; active?: boolean;
-          created_by?: string; created_at?: string; updated_at?: string;
-        };
-        Update: {
-          id?: string; space_id?: string; account_id?: string; category_id?: string;
-          direction?: Database["public"]["Enums"]["tx_direction"]; amount_cents?: number;
-          description?: string; frequency?: Database["public"]["Enums"]["recurrence_frequency"];
-          start_on?: string; next_due_on?: string; end_on?: string | null; active?: boolean;
-          created_by?: string; created_at?: string; updated_at?: string;
-        };
-        Relationships: [];
+    recurring_items: {
+      Row: {
+        id: string;
+        space_id: string;
+        account_id: string;
+        category_id: string;
+        direction: Database["public"]["Enums"]["tx_direction"];
+        amount_cents: number;
+        description: string;
+        frequency: Database["public"]["Enums"]["recurrence_frequency"];
+        start_on: string;
+        next_due_on: string;
+        end_on: string | null;
+        active: boolean;
+        created_by: string;
+        created_at: string;
+        updated_at: string;
       };
-      deadlines: {
-        Row: {
-          id: string; space_id: string; account_id: string; category_id: string;
-          direction: Database["public"]["Enums"]["tx_direction"]; amount_cents: number;
-          title: string; due_on: string; notes: string | null;
-          status: Database["public"]["Enums"]["deadline_status"]; transaction_id: string | null;
-          created_by: string; created_at: string; updated_at: string; completed_at: string | null;
-        };
-        Insert: {
-          id?: string; space_id: string; account_id: string; category_id: string;
-          direction: Database["public"]["Enums"]["tx_direction"]; amount_cents: number;
-          title: string; due_on: string; notes?: string | null;
-          status?: Database["public"]["Enums"]["deadline_status"]; transaction_id?: string | null;
-          created_by?: string; created_at?: string; updated_at?: string; completed_at?: string | null;
-        };
-        Update: {
-          id?: string; space_id?: string; account_id?: string; category_id?: string;
-          direction?: Database["public"]["Enums"]["tx_direction"]; amount_cents?: number;
-          title?: string; due_on?: string; notes?: string | null;
-          status?: Database["public"]["Enums"]["deadline_status"]; transaction_id?: string | null;
-          created_by?: string; created_at?: string; updated_at?: string; completed_at?: string | null;
-        };
-        Relationships: [];
+      Insert: {
+        id?: string;
+        space_id: string;
+        account_id: string;
+        category_id: string;
+        direction: Database["public"]["Enums"]["tx_direction"];
+        amount_cents: number;
+        description: string;
+        frequency: Database["public"]["Enums"]["recurrence_frequency"];
+        start_on: string;
+        next_due_on: string;
+        end_on?: string | null;
+        active?: boolean;
+        created_by?: string;
+        created_at?: string;
+        updated_at?: string;
       };
+      Update: {
+        id?: string;
+        space_id?: string;
+        account_id?: string;
+        category_id?: string;
+        direction?: Database["public"]["Enums"]["tx_direction"];
+        amount_cents?: number;
+        description?: string;
+        frequency?: Database["public"]["Enums"]["recurrence_frequency"];
+        start_on?: string;
+        next_due_on?: string;
+        end_on?: string | null;
+        active?: boolean;
+        created_by?: string;
+        created_at?: string;
+        updated_at?: string;
+      };
+      Relationships: [];
+    };
+    deadlines: {
+      Row: {
+        id: string;
+        space_id: string;
+        account_id: string;
+        category_id: string;
+        direction: Database["public"]["Enums"]["tx_direction"];
+        amount_cents: number;
+        title: string;
+        due_on: string;
+        notes: string | null;
+        status: Database["public"]["Enums"]["deadline_status"];
+        transaction_id: string | null;
+        created_by: string;
+        created_at: string;
+        updated_at: string;
+        completed_at: string | null;
+      };
+      Insert: {
+        id?: string;
+        space_id: string;
+        account_id: string;
+        category_id: string;
+        direction: Database["public"]["Enums"]["tx_direction"];
+        amount_cents: number;
+        title: string;
+        due_on: string;
+        notes?: string | null;
+        status?: Database["public"]["Enums"]["deadline_status"];
+        transaction_id?: string | null;
+        created_by?: string;
+        created_at?: string;
+        updated_at?: string;
+        completed_at?: string | null;
+      };
+      Update: {
+        id?: string;
+        space_id?: string;
+        account_id?: string;
+        category_id?: string;
+        direction?: Database["public"]["Enums"]["tx_direction"];
+        amount_cents?: number;
+        title?: string;
+        due_on?: string;
+        notes?: string | null;
+        status?: Database["public"]["Enums"]["deadline_status"];
+        transaction_id?: string | null;
+        created_by?: string;
+        created_at?: string;
+        updated_at?: string;
+        completed_at?: string | null;
+      };
+      Relationships: [];
+    };
     Views: {
       net_worth_totals: {
         Row: {
@@ -754,7 +814,11 @@ export type Database = {
     };
     Functions: {
       next_recurring_date: {
-        Args: { _start: string; _current: string; _frequency: Database["public"]["Enums"]["recurrence_frequency"] };
+        Args: {
+          _start: string;
+          _current: string;
+          _frequency: Database["public"]["Enums"]["recurrence_frequency"];
+        };
         Returns: string;
       };
       advance_recurring_due: { Args: { _id: string; _expected_due: string }; Returns: string };
