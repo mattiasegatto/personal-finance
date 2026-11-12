@@ -60,3 +60,16 @@ jobs:
             echo "Transfer checks did not reach their expected success marker (psql exit: $status)."
             exit 1
           fi
+
+      - name: Run investment and debt integrity and isolation tests
+        shell: bash
+        run: |
+          set +e
+          output=$(docker exec -i supabase_db_fwpycxrnkzaguulxkcqt psql --username postgres --dbname postgres --set ON_ERROR_STOP=0 < supabase/tests/investments_debts.sql 2>&1)
+          status=$?
+          set -e
+          printf '%s\\n' "$output"
+          if ! grep -q 'ALL_PASSED:' <<< "$output"; then
+            echo "Investment/debt checks did not reach their expected success marker (psql exit: $status)."
+            exit 1
+          fi
