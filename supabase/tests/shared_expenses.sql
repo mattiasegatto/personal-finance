@@ -4,7 +4,7 @@ declare
   ua uuid := '00000000-0000-0000-0000-0000000000a1';
   ub uuid := '00000000-0000-0000-0000-0000000000b1';
   sa uuid; sb uuid; sh uuid; cat_id uuid; personal_cat uuid; account_id uuid;
-  tx_id uuid; expense_id uuid; settlement_id uuid; ok boolean; n int := 0;
+  tx_id uuid; v_expense_id uuid; settlement_id uuid; ok boolean; n int := 0;
 begin
   insert into auth.users(id, instance_id, aud, role, email, raw_user_meta_data, created_at, updated_at) values
    (ua,'00000000-0000-0000-0000-000000000000','authenticated','authenticated','shared-a@test.local','{"display_name":"A"}',now(),now()),
@@ -30,10 +30,10 @@ begin
   insert into public.transactions(space_id,account_id,category_id,direction,amount_cents,occurred_on,description)
   values(sa,account_id,personal_cat,'outflow',10000,current_date,'Spesa collegabile') returning id into tx_id;
 
-  expense_id := public.save_shared_expense(null,sh,current_date,'Spesa comune',cat_id,10000,ua,'equal',
+  v_expense_id := public.save_shared_expense(null,sh,current_date,'Spesa comune',cat_id,10000,ua,'equal',
     jsonb_build_array(jsonb_build_object('member_user_id',ua,'amount_cents',5000),jsonb_build_object('member_user_id',ub,'amount_cents',5000)),tx_id);
-  if not exists(select 1 from public.shared_expenses where id=expense_id and linked_transaction_id=tx_id)
-    or (select sum(amount_cents) from public.shared_expense_shares where expense_id=expense_id)<>10000 then
+  if not exists(select 1 from public.shared_expenses where id=v_expense_id and linked_transaction_id=tx_id)
+    or (select sum(amount_cents) from public.shared_expense_shares where shared_expense_shares.expense_id=v_expense_id)<>10000 then
     raise exception 'FAIL salvataggio spesa e quote'; end if; n:=n+1;
 
   begin
@@ -45,16 +45,16 @@ begin
     raise exception 'FAIL quote non coerenti accettate'; end if; n:=n+1;
 
   begin
-    perform public.save_shared_expense(expense_id,sh,current_date,'Cambio pagatore',cat_id,10000,ub,'equal',
+    perform public.save_shared_expense(v_expense_id,sh,current_date,'Cambio pagatore',cat_id,10000,ub,'equal',
       jsonb_build_array(jsonb_build_object('member_user_id',ua,'amount_cents',5000),jsonb_build_object('member_user_id',ub,'amount_cents',5000)),tx_id);
     ok:=false;
   exception when others then ok:=true; end;
   if not ok then raise exception 'FAIL cambio pagatore con movimento collegato'; end if; n:=n+1;
 
-  perform public.unlink_shared_expense_transaction(expense_id);
+  perform public.unlink_shared_expense_transaction(v_expense_id);
   perform public.save_shared_expense(expense_id,sh,current_date,'Cambio pagatore',cat_id,10000,ub,'equal',
     jsonb_build_array(jsonb_build_object('member_user_id',ua,'amount_cents',5000),jsonb_build_object('member_user_id',ub,'amount_cents',5000)),null);
-  if (select paid_by_user_id from public.shared_expenses where id=expense_id)<>ub then raise exception 'FAIL cambio pagatore dopo unlink'; end if; n:=n+1;
+  if (select paid_by_user_id from public.shared_expenses where id=v_expense_id)<>ub then raise exception 'FAIL cambio pagatore dopo unlink'; end if; n:=n+1;
 
   settlement_id := public.save_shared_settlement(null,sh,current_date,ub,ua,2500,'rimborso','Rimborso test',null);
   if not exists(select 1 from public.shared_settlements where id=settlement_id and amount_cents=2500) then
@@ -63,8 +63,8 @@ begin
   execute 'reset role';
   perform set_config('request.jwt.claims',json_build_object('sub',ub,'role','authenticated','email','shared-b@test.local')::text,true);
   execute 'set local role authenticated';
-  if not exists(select 1 from public.shared_expenses where id=expense_id)
-    or not exists(select 1 from public.shared_expense_shares where expense_id=expense_id)
+  if not exists(select 1 from public.shared_expenses where id=v_expense_id)
+    or not exists(select 1 from public.shared_expense_shares where shared_expense_shares.expense_id=v_expense_id)
     or not exists(select 1 from public.shared_settlements where id=settlement_id) then
     raise exception 'FAIL membro non legge dati condivisi'; end if; n:=n+1;
   if exists(select 1 from public.transactions where id=tx_id) then raise exception 'FAIL membro vede movimento personale altrui'; end if; n:=n+1;
@@ -76,7 +76,7 @@ begin
   perform set_config('request.jwt.claims',json_build_object('sub',ua,'role','authenticated','email','shared-a@test.local')::text,true);
   execute 'set local role authenticated';
   perform public.delete_shared_expense(expense_id);
-  if not exists(select 1 from public.shared_expenses where id=expense_id and deleted_at is not null) then
+  if not exists(select 1 from public.shared_expenses where id=v_expense_id and deleted_at is not null) then
     raise exception 'FAIL annullamento spesa'; end if; n:=n+1;
   execute 'reset role';
   raise exception 'ALL_PASSED: % controlli',n;
