@@ -1,752 +1,117 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { ArrowRight, Link2, Repeat, ShieldCheck, Handshake, Trash2 } from "lucide-react";
+import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
+import { useMemo, useState, type FormEvent } from "react";
+import { toast } from "sonner";
+import { ArrowRight, Handshake, Plus, ShieldCheck, Trash2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/page";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Slider } from "@/components/ui/slider";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
-  dateFull,
-  dateShort as dateLabel,
-  equalShares,
-  eur,
-  monthLabel,
-  monthShort,
-  netBalances,
-  outstandingDebt,
-  validateSettlement,
-  type Settlement,
-  type SharedExpense,
-} from "@/lib/domain";
-import {
-  categories,
-  memberName,
-  members,
-  settlements as demoSettlements,
-  sharedExpenses,
-} from "@/lib/mock-data";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { spacesQuery } from "@/lib/spaces";
+import { parseCents } from "@/lib/finance";
 
 export const Route = createFileRoute("/_authenticated/spese-condivise")({
-  head: () => ({
-    meta: [
-      { title: "Spese condivise — Fondo" },
-      {
-        name: "description",
-        content: "Spese comuni, quote, saldo e rimborsi tra partecipanti (dati dimostrativi).",
-      },
-      { property: "og:title", content: "Spese condivise — Fondo" },
-      {
-        property: "og:description",
-        content: "Spese comuni, quote, saldo e rimborsi tra partecipanti.",
-      },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-    ],
-  }),
+  loader: ({ context }) => context.queryClient.ensureQueryData(spacesQuery),
+  head: () => ({ meta: [{ title: "Spese condivise — Personal Finance" }] }),
   component: SharedPage,
 });
 
-const splitLabel = { equal: "50 / 50", percent: "Percentuale", amount: "Importi" } as const;
-
-function Avatar({ id }: { id: string }) {
-  const m = members.find((x) => x.id === id)!;
-  return (
-    <span
-      className={`inline-grid h-6 w-6 place-items-center rounded-full text-[10px] font-bold text-primary-foreground ${id === "m1" ? "bg-person-a" : "bg-person-b"}`}
-    >
-      {m.initials}
-    </span>
-  );
-}
+type Member = { user_id: string; role: "owner" | "member" | "viewer"; name: string };
+type Expense = { id: string; occurred_on: string; description: string; category_id: string; amount_cents: number; paid_by_user_id: string; split_mode: string; linked_transaction_id: string | null; shares: { member_user_id: string; amount_cents: number }[] };
+type Settlement = { id: string; occurred_on: string; from_user_id: string; to_user_id: string; amount_cents: number; kind: string; note: string | null };
+type Category = { id: string; name: string; parent_id: string | null; kind: "income" | "expense" | null };
+const money = (c: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(c / 100);
+const today = () => new Date().toISOString().slice(0, 10);
 
 function SharedPage() {
-  const [expenses, setExpenses] = useState<SharedExpense[]>(sharedExpenses);
-  const [settlements, setSettlements] = useState<Settlement[]>(demoSettlements);
+  const { data: spacesData } = useSuspenseQuery(spacesQuery);
+  const spaces = spacesData.spaces.filter(s => s.kind === "shared" && !s.archived_at);
+  const [selected, setSelected] = useState("");
+  const space = spaces.find(s => s.id === selected) ?? spaces[0];
+  const qc = useQueryClient();
+  const [expenseOpen, setExpenseOpen] = useState(false);
+  const [settlementOpen, setSettlementOpen] = useState(false);
   const [period, setPeriod] = useState("all");
-  const [category, setCategory] = useState("all");
   const [person, setPerson] = useState("all");
-  const [editing, setEditing] = useState<SharedExpense | null>(null);
-  const [settling, setSettling] = useState(false);
-  const [removing, setRemoving] = useState<string | null>(null);
-
-  const months = useMemo(
-    () => [...new Set(expenses.map((e) => e.date.slice(0, 7)))].sort().reverse(),
-    [expenses],
-  );
-
-  const filtered = expenses.filter(
-    (e) =>
-      (period === "all" || e.date.startsWith(period)) &&
-      (category === "all" || e.category === category) &&
-      (person === "all" || e.paidBy === person),
-  );
-  const filteredSettlements = settlements
-    .filter(
-      (s) =>
-        (period === "all" || s.date.startsWith(period)) &&
-        (person === "all" || s.from === person || s.to === person),
-    )
-    .sort((x, y) => y.date.localeCompare(x.date));
-
-  const balances = netBalances(expenses, settlements);
-  const creditor = members.find((m) => (balances[m.id] ?? 0) > 0);
-  const debtor = members.find((m) => (balances[m.id] ?? 0) < 0);
-  const owed = creditor ? balances[creditor.id] : 0;
-  const removeTarget = settlements.find((s) => s.id === removing);
-
-  const monthly = [...months].reverse().map((ym) => {
-    const list = expenses.filter((e) => e.date.startsWith(ym));
-    const row: Record<string, number | string> = { mese: monthShort(ym) };
-    for (const m of members)
-      row[m.name] = list.filter((e) => e.paidBy === m.id).reduce((a, e) => a + e.amount, 0);
-    return row;
+  const q = useQuery({
+    queryKey: ["shared-finance", space?.id], enabled: !!space,
+    queryFn: async () => {
+      const sid = space!.id;
+      const [mr, cr, er, sr] = await Promise.all([
+        supabase.from("space_memberships").select("space_id,user_id,role").eq("space_id", sid),
+        supabase.from("categories").select("id,name,parent_id,kind").eq("space_id", sid).is("archived_at", null).order("name"),
+        supabase.from("shared_expenses").select("*").eq("space_id", sid).is("deleted_at", null).order("occurred_on", {ascending:false}),
+        supabase.from("shared_settlements").select("*").eq("space_id", sid).is("deleted_at", null).order("occurred_on", {ascending:false}),
+      ]);
+      const error = mr.error ?? cr.error ?? er.error ?? sr.error; if (error) throw error;
+      const ids = (mr.data ?? []).map(m => m.user_id);
+      const pr = ids.length ? await supabase.from("profiles").select("id,display_name").in("id", ids) : {data:[],error:null};
+      if (pr.error) throw pr.error;
+      const members: Member[] = (mr.data ?? []).map(m => ({...m, role:m.role, name:pr.data?.find(p=>p.id===m.user_id)?.display_name || "Membro"}));
+      const rows = er.data ?? [];
+      const shr = rows.length ? await supabase.from("shared_expense_shares").select("*").in("expense_id", rows.map(e=>e.id)) : {data:[],error:null};
+      if (shr.error) throw shr.error;
+      const expenses: Expense[] = rows.map(e=>({...e, amount_cents:Number(e.amount_cents), shares:(shr.data??[]).filter(s=>s.expense_id===e.id).map(s=>({member_user_id:s.member_user_id,amount_cents:Number(s.amount_cents)}))}));
+      const settlements: Settlement[] = (sr.data??[]).map(s=>({...s,amount_cents:Number(s.amount_cents)}));
+      return {members, categories:(cr.data??[]) as Category[], expenses, settlements};
+    }
   });
-
-  // Saldo progressivo: eventi in ordine cronologico, saldo dal punto di vista di Mattia.
-  const timeline = useMemo(() => {
-    const events = [
-      ...expenses.map((e) => ({
-        date: e.date,
-        id: e.id,
-        label: e.description,
-        type: "spesa" as const,
-        delta:
-          (e.paidBy === "m1" ? e.amount : 0) -
-          (e.shares.find((s) => s.memberId === "m1")?.amount ?? 0),
-      })),
-      ...settlements.map((s) => ({
-        date: s.date,
-        id: s.id,
-        label: s.note ?? "Rimborso",
-        type: s.kind,
-        delta: s.from === "m1" ? s.amount : -s.amount,
-      })),
-    ].sort((a, b) => a.date.localeCompare(b.date));
-    let run = 0;
-    return events
-      .map((ev) => ({ ...ev, balance: (run = Math.round((run + ev.delta) * 100) / 100) }))
-      .reverse();
-  }, [expenses, settlements]);
-
-  const total = filtered.reduce((a, e) => a + e.amount, 0);
-
-  return (
-    <div>
-      <PageHeader eyebrow="Spazio condiviso · Casa" title="Spese condivise">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <ShieldCheck className="h-4 w-4 text-positive" />
-          Conti e investimenti personali restano privati
-        </div>
-      </PageHeader>
-
-      {/* Saldo */}
-      <div className="grid gap-4 md:grid-cols-[1.4fr_1fr_1fr]">
-        <div className="rounded-2xl bg-primary p-6 text-primary-foreground">
-          <p className="text-sm opacity-80">Saldo attuale</p>
-          {creditor && debtor ? (
-            <>
-              <p className="num mt-2 font-display text-4xl">{eur(owed ?? 0)}</p>
-              <p className="mt-3 flex items-center gap-2 text-sm">
-                <strong>{debtor.name}</strong> <ArrowRight className="h-4 w-4" />{" "}
-                <strong>{creditor.name}</strong>
-              </p>
-            </>
-          ) : (
-            <>
-              <p className="mt-2 font-display text-3xl">In pari</p>
-              <p className="mt-3 text-sm opacity-80">Non ci sono debiti da regolare.</p>
-            </>
-          )}
-          <Button
-            variant="secondary"
-            size="sm"
-            className="mt-5"
-            disabled={!creditor || !debtor}
-            onClick={() => setSettling(true)}
-          >
-            <Handshake className="h-4 w-4" />
-            Registra pareggio
-          </Button>
-        </div>
-        {members.map((m) => {
-          const paid = expenses.filter((e) => e.paidBy === m.id).reduce((a, e) => a + e.amount, 0);
-          const share = expenses
-            .flatMap((e) => e.shares)
-            .filter((s) => s.memberId === m.id)
-            .reduce((a, s) => a + s.amount, 0);
-          return (
-            <div key={m.id} className="rounded-2xl border bg-card p-6">
-              <div className="flex items-center gap-2">
-                <Avatar id={m.id} />
-                <span className="font-medium">{m.name}</span>
-              </div>
-              <dl className="mt-4 space-y-1.5 text-sm">
-                <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Ha pagato</dt>
-                  <dd className="num">{eur(paid)}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Sua quota</dt>
-                  <dd className="num">{eur(share)}</dd>
-                </div>
-                <div className="flex justify-between border-t pt-1.5 font-semibold">
-                  <dt>Netto</dt>
-                  <dd
-                    className={`num ${(balances[m.id] ?? 0) >= 0 ? "text-positive" : "text-negative"}`}
-                  >
-                    {eur(balances[m.id] ?? 0)}
-                  </dd>
-                </div>
-              </dl>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Filtri */}
-      <div className="mt-8 flex flex-wrap gap-3">
-        <Select value={period} onValueChange={setPeriod}>
-          <SelectTrigger className="w-44 bg-card">
-            <SelectValue>{period === "all" ? "Tutti i periodi" : monthLabel(period)}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tutti i periodi</SelectItem>
-            {months.map((m) => (
-              <SelectItem key={m} value={m}>
-                {monthLabel(m)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={category} onValueChange={setCategory}>
-          <SelectTrigger className="w-44 bg-card">
-            <SelectValue>{category === "all" ? "Tutte le categorie" : category}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tutte le categorie</SelectItem>
-            {categories.map((c) => (
-              <SelectItem key={c} value={c}>
-                {c}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={person} onValueChange={setPerson}>
-          <SelectTrigger className="w-44 bg-card">
-            <SelectValue>
-              {person === "all" ? "Tutti i partecipanti" : memberName(person)}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tutti i partecipanti</SelectItem>
-            {members.map((m) => (
-              <SelectItem key={m.id} value={m.id}>
-                {m.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <Tabs defaultValue="spese" className="mt-6">
-        <TabsList>
-          <TabsTrigger value="spese">Spese</TabsTrigger>
-          <TabsTrigger value="riepilogo">Riepilogo mensile</TabsTrigger>
-          <TabsTrigger value="saldo">Saldo progressivo</TabsTrigger>
-          <TabsTrigger value="rimborsi">Rimborsi</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="spese" className="mt-4">
-          <div className="overflow-hidden rounded-2xl border bg-card">
-            <div className="flex items-center justify-between border-b px-5 py-3 text-sm">
-              <span className="text-muted-foreground">{filtered.length} spese</span>
-              <span className="num font-semibold">{eur(total)}</span>
-            </div>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Data</TableHead>
-                  <TableHead>Descrizione</TableHead>
-                  <TableHead className="hidden md:table-cell">Categoria</TableHead>
-                  <TableHead>Pagato da</TableHead>
-                  <TableHead className="hidden md:table-cell">Divisione</TableHead>
-                  <TableHead className="text-right">Importo</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((e) => (
-                  <TableRow key={e.id} className="cursor-pointer" onClick={() => setEditing(e)}>
-                    <TableCell className="whitespace-nowrap text-muted-foreground">
-                      {dateLabel(e.date)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2 font-medium">
-                        {e.description}
-                        {e.linkedTransactionId && (
-                          <span title="Collegata a un movimento personale">
-                            <Link2 className="h-3.5 w-3.5 text-transfer" />
-                          </span>
-                        )}
-                        {e.recurrenceId && (
-                          <span title="Ricorrente">
-                            <Repeat className="h-3.5 w-3.5 text-muted-foreground" />
-                          </span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      <Badge variant="secondary">{e.category}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Avatar id={e.paidBy} />
-                        <span className="hidden sm:inline">{memberName(e.paidBy)}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      <span className="text-xs text-muted-foreground">
-                        {splitLabel[e.splitMode]}
-                      </span>
-                      <span className="num ml-2 text-xs">
-                        {e.shares.map((s) => eur(s.amount)).join(" · ")}
-                      </span>
-                    </TableCell>
-                    <TableCell className="num text-right font-semibold">{eur(e.amount)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-          <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Link2 className="h-3 w-3 text-transfer" /> Collegata al movimento bancario del
-            pagatore: non viene duplicata nelle uscite. Clicca una spesa per modificarne le quote.
-          </p>
-        </TabsContent>
-
-        <TabsContent value="riepilogo" className="mt-4 grid gap-4 md:grid-cols-[2fr_1fr]">
-          <div className="rounded-2xl border bg-card p-6">
-            <h3 className="text-lg">Spese comuni per mese</h3>
-            <div className="mt-4 h-64">
-              <ResponsiveContainer>
-                <BarChart data={monthly}>
-                  <CartesianGrid vertical={false} stroke="var(--border)" />
-                  <XAxis dataKey="mese" tickLine={false} axisLine={false} />
-                  <YAxis tickLine={false} axisLine={false} width={50} />
-                  <Tooltip formatter={(v: number) => eur(v)} />
-                  <Bar dataKey="Mattia" stackId="a" fill="var(--person-a)" />
-                  <Bar dataKey="Giulia" stackId="a" fill="var(--person-b)" radius={[6, 6, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-          <div className="space-y-3">
-            {months.map((ym) => {
-              const list = expenses.filter((e) => e.date.startsWith(ym));
-              return (
-                <div
-                  key={ym}
-                  className="flex items-center justify-between rounded-xl border bg-card px-5 py-4"
-                >
-                  <div>
-                    <p className="font-medium">{monthLabel(ym)}</p>
-                    <p className="text-xs text-muted-foreground">{list.length} spese</p>
-                  </div>
-                  <p className="num font-display text-xl">
-                    {eur(list.reduce((a, e) => a + e.amount, 0))}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="saldo" className="mt-4">
-          <div className="rounded-2xl border bg-card">
-            <p className="border-b px-5 py-3 text-sm text-muted-foreground">
-              Saldo dal punto di vista di Mattia: positivo = Giulia deve a Mattia.
-            </p>
-            <ul className="divide-y">
-              {timeline.map((ev) => (
-                <li key={ev.id} className="flex items-center gap-4 px-5 py-3 text-sm">
-                  <span className="w-16 text-muted-foreground">{dateLabel(ev.date)}</span>
-                  <span className="flex-1">
-                    {ev.label}{" "}
-                    {ev.type !== "spesa" && (
-                      <Badge variant="outline" className="ml-1">
-                        {ev.type}
-                      </Badge>
-                    )}
-                  </span>
-                  <span
-                    className={`num w-24 text-right ${ev.delta >= 0 ? "text-positive" : "text-negative"}`}
-                  >
-                    {ev.delta >= 0 ? "+" : ""}
-                    {eur(ev.delta)}
-                  </span>
-                  <span className="num w-28 text-right font-semibold">{eur(ev.balance)}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="rimborsi" className="mt-4 space-y-3">
-          {filteredSettlements.map((s) => (
-            <div
-              key={s.id}
-              className="flex flex-wrap items-center gap-4 rounded-xl border bg-card px-5 py-4"
-            >
-              <Badge className={s.kind === "pareggio" ? "bg-primary" : "bg-transfer"}>
-                {s.kind === "pareggio" ? "Pareggio" : "Rimborso"}
-              </Badge>
-              <div className="flex items-center gap-2 text-sm">
-                <Avatar id={s.from} />
-                <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                <Avatar id={s.to} />
-              </div>
-              <div className="flex-1 text-sm">
-                <p className="font-medium">
-                  {memberName(s.from)} ha pagato {memberName(s.to)}
-                  {s.note ? ` · ${s.note}` : ""}
-                </p>
-                <p className="text-xs text-muted-foreground">{dateFull(s.date)}</p>
-              </div>
-              <p className="num font-display text-xl">{eur(s.amount)}</p>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label={`Elimina rimborso del ${dateFull(s.date)}`}
-                onClick={() => setRemoving(s.id)}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          ))}
-          {filteredSettlements.length === 0 && (
-            <p className="rounded-xl border bg-card px-5 py-4 text-sm text-muted-foreground">
-              Nessun rimborso nel periodo selezionato.
-            </p>
-          )}
-          <p className="text-xs text-muted-foreground">
-            I rimborsi compensano il saldo: non sono registrati come reddito né come nuova spesa
-            condivisa.
-          </p>
-        </TabsContent>
-      </Tabs>
-
-      {editing && (
-        <SplitDialog
-          key={editing.id}
-          expense={editing}
-          onClose={() => setEditing(null)}
-          onSave={(u) => {
-            setExpenses((xs) => xs.map((x) => (x.id === u.id ? u : x)));
-            setEditing(null);
-          }}
-        />
-      )}
-
-      {settling && (
-        <SettlementDialog
-          balances={balances}
-          defaultFrom={debtor?.id ?? "m2"}
-          defaultTo={creditor?.id ?? "m1"}
-          onClose={() => setSettling(false)}
-          onSave={(s) => {
-            setSettlements((xs) => [...xs, s]);
-            setSettling(false);
-          }}
-        />
-      )}
-
-      <AlertDialog open={!!removeTarget} onOpenChange={(o) => !o && setRemoving(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="font-display">Eliminare questo rimborso?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {removeTarget &&
-                `${memberName(removeTarget.from)} → ${memberName(removeTarget.to)}, ${eur(removeTarget.amount)} del ${dateFull(removeTarget.date)}. Il saldo tornerà al valore precedente.`}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                setSettlements((xs) => xs.filter((x) => x.id !== removing));
-                setRemoving(null);
-              }}
-            >
-              Elimina rimborso
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+  const data = q.data;
+  const members = data?.members ?? [], expenses = data?.expenses ?? [], settlements = data?.settlements ?? [];
+  const balances = useMemo(() => {
+    const b: Record<string,number> = {};
+    const add=(id:string,v:number)=>{b[id]=(b[id]??0)+v;};
+    expenses.forEach(e=>{add(e.paid_by_user_id,e.amount_cents);e.shares.forEach(s=>add(s.member_user_id,-s.amount_cents));});
+    settlements.forEach(s=>{add(s.from_user_id,s.amount_cents);add(s.to_user_id,-s.amount_cents);});
+    return b;
+  },[expenses,settlements]);
+  const debtor=members.find(m=>(balances[m.user_id]??0)<0), creditor=members.find(m=>(balances[m.user_id]??0)>0);
+  const canEdit=space?.myRole==="owner"||space?.myRole==="member";
+  const refresh=()=>{void qc.invalidateQueries({queryKey:["shared-finance",space?.id]});};
+  const removeExpense=useMutation({mutationFn:async(id:string)=>{const {error}=await supabase.rpc("delete_shared_expense",{_id:id});if(error)throw error;},onSuccess:()=>{toast.success("Spesa annullata");refresh();},onError:e=>toast.error(e.message)});
+  const removeSettlement=useMutation({mutationFn:async(id:string)=>{const {error}=await supabase.rpc("delete_shared_settlement",{_id:id});if(error)throw error;},onSuccess:()=>{toast.success("Rimborso annullato");refresh();},onError:e=>toast.error(e.message)});
+  const visibleExpenses=expenses.filter(e=>(period==="all"||e.occurred_on.startsWith(period))&&(person==="all"||e.paid_by_user_id===person||e.shares.some(s=>s.member_user_id===person)));
+  const visibleSettlements=settlements.filter(s=>(period==="all"||s.occurred_on.startsWith(period))&&(person==="all"||s.from_user_id===person||s.to_user_id===person));
+  if(!spaces.length) return <div><PageHeader eyebrow="Spazio condiviso" title="Spese condivise"/><div className="rounded-2xl border border-dashed p-8 text-center"><h2 className="font-semibold">Nessuno spazio condiviso attivo</h2><p className="mt-2 text-sm text-muted-foreground">Crea uno spazio condiviso o accetta un invito nelle Impostazioni.</p><Button className="mt-4" onClick={()=>{window.location.href="/impostazioni";}}>Vai alle impostazioni</Button></div></div>;
+  return <div>
+    <PageHeader eyebrow="Gestione condivisa" title="Spese condivise"><div className="flex items-center gap-2 text-sm text-muted-foreground"><ShieldCheck className="h-4 w-4 text-positive"/>I dati personali restano privati</div></PageHeader>
+    <div className="mb-6 flex flex-wrap gap-3">
+      <Select value={space!.id} onValueChange={setSelected}><SelectTrigger className="w-56 bg-card"><SelectValue/></SelectTrigger><SelectContent>{spaces.map(s=><SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent></Select>
+      {canEdit&&<><Button onClick={()=>setExpenseOpen(true)}><Plus className="mr-2 h-4 w-4"/>Nuova spesa</Button><Button variant="outline" onClick={()=>setSettlementOpen(true)}><Handshake className="mr-2 h-4 w-4"/>Registra rimborso</Button></>}
     </div>
-  );
+    {q.isLoading?<p>Caricamento…</p>:q.isError?<p className="text-destructive">{q.error.message}</p>:<>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{members.map(m=><section key={m.user_id} className="rounded-2xl border bg-card p-5"><p className="font-medium">{m.name}{m.user_id===spacesData.uid?" · tu":""}</p><p className="mt-3 text-xs text-muted-foreground">Ha pagato</p><p className="num text-lg">{money(expenses.filter(e=>e.paid_by_user_id===m.user_id).reduce((a,e)=>a+e.amount_cents,0))}</p><p className="mt-2 text-xs text-muted-foreground">Saldo netto</p><p className={`num text-xl font-semibold ${(balances[m.user_id]??0)>=0?"text-positive":"text-negative"}`}>{money(balances[m.user_id]??0)}</p></section>)}</div>
+      <section className="mt-4 rounded-2xl border bg-card p-5"><p className="text-sm text-muted-foreground">Situazione complessiva</p>{debtor&&creditor?<p className="mt-2"><strong>{debtor.name}</strong> deve versare a <strong>{creditor.name}</strong> <strong className="num">{money(Math.min(-(balances[debtor.user_id]??0),balances[creditor.user_id]??0))}</strong></p>:<p className="mt-2 font-semibold">Tutti i saldi sono in pari.</p>}</section>
+      <div className="mt-7 flex flex-wrap gap-3">
+        <Select value={period} onValueChange={setPeriod}><SelectTrigger className="w-48 bg-card"><SelectValue/></SelectTrigger><SelectContent><SelectItem value="all">Tutti i periodi</SelectItem>{[...new Set(expenses.map(e=>e.occurred_on.slice(0,7)))].sort().reverse().map(m=><SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent></Select>
+        <Select value={person} onValueChange={setPerson}><SelectTrigger className="w-48 bg-card"><SelectValue/></SelectTrigger><SelectContent><SelectItem value="all">Tutti i partecipanti</SelectItem>{members.map(m=><SelectItem key={m.user_id} value={m.user_id}>{m.name}</SelectItem>)}</SelectContent></Select>
+      </div>
+      <section className="mt-4 overflow-hidden rounded-2xl border bg-card"><div className="border-b px-5 py-3 font-semibold">Spese · {visibleExpenses.length}</div>{visibleExpenses.length?visibleExpenses.map(e=><div key={e.id} className="flex flex-wrap items-center gap-3 border-b px-5 py-4 last:border-0"><div className="min-w-0 flex-1"><p className="font-medium">{e.description}</p><p className="text-xs text-muted-foreground">{e.occurred_on} · pagata da {members.find(m=>m.user_id===e.paid_by_user_id)?.name??"—"} · {e.shares.map(s=>`${members.find(m=>m.user_id===s.member_user_id)?.name??"?"}: ${money(s.amount_cents)}`).join(" · ")}</p></div><span className="num font-semibold">{money(e.amount_cents)}</span>{e.linked_transaction_id&&<span className="text-xs text-muted-foreground">Collegata</span>}{canEdit&&<Button size="icon" variant="ghost" aria-label="Annulla spesa" onClick={()=>removeExpense.mutate(e.id)}><Trash2 className="h-4 w-4"/></Button>}</div>):<p className="px-5 py-8 text-sm text-muted-foreground">Nessuna spesa registrata.</p>}</section>
+      <section className="mt-6 overflow-hidden rounded-2xl border bg-card"><div className="border-b px-5 py-3 font-semibold">Rimborsi · {visibleSettlements.length}</div>{visibleSettlements.length?visibleSettlements.map(s=><div key={s.id} className="flex items-center gap-3 border-b px-5 py-4 last:border-0"><span className="min-w-0 flex-1 text-sm"><strong>{members.find(m=>m.user_id===s.from_user_id)?.name}</strong><ArrowRight className="mx-2 inline h-3 w-3"/><strong>{members.find(m=>m.user_id===s.to_user_id)?.name}</strong><span className="ml-2 text-muted-foreground">{s.note??s.kind} · {s.occurred_on}</span></span><strong className="num">{money(s.amount_cents)}</strong>{canEdit&&<Button size="icon" variant="ghost" aria-label="Annulla rimborso" onClick={()=>removeSettlement.mutate(s.id)}><Trash2 className="h-4 w-4"/></Button>}</div>):<p className="px-5 py-8 text-sm text-muted-foreground">Nessun rimborso registrato.</p>}</section>
+    </>}
+    {expenseOpen&&<ExpenseDialog spaceId={space!.id} members={members} categories={data?.categories??[]} uid={spacesData.uid!} onClose={()=>setExpenseOpen(false)} onSaved={refresh}/>}
+    {settlementOpen&&<SettlementDialog spaceId={space!.id} members={members} balances={balances} uid={spacesData.uid!} onClose={()=>setSettlementOpen(false)} onSaved={refresh}/>}
+  </div>;
 }
 
-export function SettlementDialog({
-  balances,
-  defaultFrom,
-  defaultTo,
-  onClose,
-  onSave,
-}: {
-  balances: Record<string, number>;
-  defaultFrom: string;
-  defaultTo: string;
-  onClose: () => void;
-  onSave: (s: Settlement) => void;
-}) {
-  const [from, setFrom] = useState(defaultFrom);
-  const [to, setTo] = useState(defaultTo);
-  const debt = outstandingDebt(balances, from, to);
-  const [amount, setAmount] = useState(debt ? debt.toFixed(2) : "");
-  const [date, setDate] = useState("2026-10-28");
-  const [note, setNote] = useState("");
-  const [touched, setTouched] = useState(false);
-  const value = Number(amount.replace(",", "."));
-  const error = validateSettlement(balances, {
-    from,
-    to,
-    amount: amount.trim() === "" ? NaN : value,
-    date,
-  });
-  const submit = () => {
-    setTouched(true);
-    if (error) return;
-    const full = Math.round(value * 100) === Math.round(debt * 100);
-    onSave({
-      id: `s-${Date.now()}`,
-      spaceId: "s-casa",
-      date,
-      from,
-      to,
-      amount: Math.round(value * 100) / 100,
-      kind: full ? "pareggio" : "rimborso",
-      ...(note.trim() ? { note: note.trim() } : {}),
-    });
-  };
-  const swap = (setter: (v: string) => void, other: (v: string) => void) => (v: string) => {
-    setter(v);
-    other(members.find((m) => m.id !== v)!.id);
-  };
-
-  return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle className="font-display">Registra rimborso</DialogTitle>
-          <DialogDescription>
-            Debito residuo:{" "}
-            {debt
-              ? `${memberName(from)} deve ${eur(debt)} a ${memberName(to)}`
-              : "nessun debito in questa direzione"}
-            . Non viene registrato come entrata né come spesa.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4 py-2 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label>Chi paga</Label>
-            <Select value={from} onValueChange={swap(setFrom, setTo)}>
-              <SelectTrigger aria-label="Chi paga">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {members.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    {m.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Chi riceve</Label>
-            <Select value={to} onValueChange={swap(setTo, setFrom)}>
-              <SelectTrigger aria-label="Chi riceve">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {members.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    {m.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="st-amount">Importo (€)</Label>
-            <Input
-              id="st-amount"
-              inputMode="decimal"
-              className="num"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="st-date">Data</Label>
-            <Input
-              id="st-date"
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label htmlFor="st-note">Descrizione (facoltativa)</Label>
-            <Input id="st-note" value={note} onChange={(e) => setNote(e.target.value)} />
-          </div>
-          {touched && error && (
-            <p role="alert" className="text-sm text-negative sm:col-span-2">
-              {error}
-            </p>
-          )}
-        </div>
-        <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={onClose}>
-            Annulla
-          </Button>
-          <Button onClick={submit}>Registra rimborso</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
+function Modal({title,children,onClose}:{title:string;children:React.ReactNode;onClose:()=>void}) {
+  return <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4"><section className="max-h-[90vh] w-full max-w-lg space-y-4 overflow-y-auto rounded-2xl border bg-background p-6 shadow-xl"><div className="flex items-center justify-between"><h2 className="text-xl font-semibold">{title}</h2><Button type="button" variant="ghost" onClick={onClose}>Chiudi</Button></div>{children}</section></div>;
 }
-
-export function SplitDialog({
-  expense,
-  onClose,
-  onSave,
-}: {
-  expense: SharedExpense;
-  onClose: () => void;
-  onSave: (e: SharedExpense) => void;
-}) {
-  const originalA = expense.shares.find((s) => s.memberId === "m1")?.amount ?? 0;
-  const [pct, setPct] = useState(expense.amount > 0 ? (originalA / expense.amount) * 100 : 50);
-  const [changed, setChanged] = useState(false);
-  const updatePct = (value: number) => {
-    if (!Number.isFinite(value)) return;
-    setPct(Math.max(0, Math.min(100, value)));
-    setChanged(true);
-  };
-  const defaultShares = equalShares(expense.amount, ["m1", "m2"]);
-  const a = !changed
-    ? originalA
-    : pct === 50
-      ? (defaultShares[0]?.amount ?? 0)
-      : Math.round(expense.amount * pct) / 100;
-  const b = Math.round((expense.amount - a) * 100) / 100;
-
-  return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle className="font-display">Quote · {expense.description}</DialogTitle>
-          <DialogDescription>
-            {eur(expense.amount)} pagati da {memberName(expense.paidBy)}. Predefinito: 50 / 50.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-6 py-2">
-          <Slider
-            value={[pct]}
-            min={0}
-            max={100}
-            step={5}
-            onValueChange={([v]) => updatePct(v ?? 50)}
-          />
-          <div className="grid grid-cols-2 gap-4">
-            {[
-              ["m1", pct, a],
-              ["m2", 100 - pct, b],
-            ].map(([id, p, v]) => (
-              <div key={id as string} className="rounded-xl border p-4">
-                <div className="flex items-center gap-2">
-                  <Avatar id={id as string} />
-                  <Label>{memberName(id as string)}</Label>
-                </div>
-                <Input
-                  type="number"
-                  aria-label={`Quota percentuale ${memberName(id as string)}`}
-                  step="any"
-                  className="num mt-3"
-                  value={p as number}
-                  min={0}
-                  max={100}
-                  onChange={(ev) => {
-                    const n = Math.max(0, Math.min(100, Number(ev.target.value)));
-                    updatePct(id === "m1" ? n : 100 - n);
-                  }}
-                />
-                <p className="num mt-2 text-sm text-muted-foreground">{eur(v as number)}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-        <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => updatePct(50)}>
-            Ripristina 50 / 50
-          </Button>
-          <Button
-            onClick={() =>
-              onSave({
-                ...expense,
-                splitMode: !changed ? expense.splitMode : pct === 50 ? "equal" : "percent",
-                shares: !changed
-                  ? expense.shares
-                  : pct === 50
-                    ? defaultShares
-                    : [
-                        { memberId: "m1", amount: a },
-                        { memberId: "m2", amount: b },
-                      ],
-              })
-            }
-          >
-            Salva quote
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
+function ExpenseDialog({spaceId,members,categories,uid,onClose,onSaved}:{spaceId:string;members:Member[];categories:Category[];uid:string;onClose:()=>void;onSaved:()=>void}) {
+  const active=members.filter(m=>m.role!=="viewer");
+  const [date,setDate]=useState(today()),[description,setDescription]=useState(""),[amount,setAmount]=useState(""),[payer,setPayer]=useState(uid),[category,setCategory]=useState(categories.find(c=>c.parent_id)?.id??categories[0]?.id??""),[shares,setShares]=useState<Record<string,string>>({}),[busy,setBusy]=useState(false);
+  const cents=parseCents(amount);
+  const equal=active.length&&cents!==null?Math.floor(cents/active.length):0;
+  const split=active.map((m,i)=>({member_user_id:m.user_id,amount_cents:shares[m.user_id]===undefined?equal+(cents!==null&&i<cents%active.length?1:0):parseCents(shares[m.user_id])??-1}));
+  const save=async(e:FormEvent)=>{e.preventDefault();if(!cents||cents<=0||!description.trim()||!category)return;if(split.some(s=>s.amount_cents<0)||split.reduce((a,s)=>a+s.amount_cents,0)!==cents){toast.error("Le quote devono coincidere con l'importo totale.");return;}setBusy(true);const {error}=await supabase.rpc("save_shared_expense",{_id:null,_space_id:spaceId,_occurred_on:date,_description:description.trim(),_category_id:category,_amount_cents:cents,_paid_by_user_id:payer,_split_mode:Object.keys(shares).length?"amount":"equal",_shares:split,_linked_transaction_id:null});setBusy(false);if(error)toast.error(error.message);else{toast.success("Spesa registrata");onSaved();onClose();}};
+  return <Modal title="Nuova spesa condivisa" onClose={onClose}><form onSubmit={save} className="space-y-3"><div className="grid grid-cols-2 gap-3"><div><Label>Data</Label><Input type="date" value={date} onChange={e=>setDate(e.target.value)} required/></div><div><Label>Importo</Label><Input value={amount} onChange={e=>{setAmount(e.target.value);setShares({});}} placeholder="0,00" required/></div></div><div><Label>Descrizione</Label><Input value={description} onChange={e=>setDescription(e.target.value)} maxLength={200} required/></div><div><Label>Categoria</Label><Select value={category} onValueChange={setCategory}><SelectTrigger><SelectValue placeholder="Seleziona categoria"/></SelectTrigger><SelectContent>{categories.filter(c=>c.kind==="expense"||c.parent_id!==null).map(c=><SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select></div><div><Label>Pagato da</Label><Select value={payer} onValueChange={setPayer}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{active.map(m=><SelectItem key={m.user_id} value={m.user_id}>{m.name}</SelectItem>)}</SelectContent></Select></div><div className="space-y-2"><Label>Quote individuali (predefinite 50/50 o ripartite equamente)</Label>{active.map((m,i)=><div key={m.user_id} className="grid grid-cols-[1fr_120px] items-center gap-2"><span className="text-sm">{m.name}</span><Input value={shares[m.user_id]??(cents!==null?(split[i].amount_cents/100).toFixed(2).replace(".",","):"")} onChange={e=>setShares(old=>({...old,[m.user_id]:e.target.value}))} placeholder="0,00"/></div>)}<p className="text-xs text-muted-foreground">Totale quote: {money(split.reduce((a,s)=>a+Math.max(0,s.amount_cents),0))} / {cents===null?"—":money(cents)}</p></div><div className="flex justify-end gap-2 pt-2"><Button type="button" variant="outline" onClick={onClose}>Annulla</Button><Button type="submit" disabled={busy||!cents||cents<=0||!description.trim()||!category}>Salva spesa</Button></div></form></Modal>;
+}
+function SettlementDialog({spaceId,members,balances,uid,onClose,onSaved}:{spaceId:string;members:Member[];balances:Record<string,number>;uid:string;onClose:()=>void;onSaved:()=>void}) {
+  const debtor=members.find(m=>(balances[m.user_id]??0)<0),creditor=members.find(m=>(balances[m.user_id]??0)>0);
+  const [from,setFrom]=useState(debtor?.user_id??uid),[to,setTo]=useState(creditor?.user_id??members.find(m=>m.user_id!==uid)?.user_id??""),[date,setDate]=useState(today()),[amount,setAmount]=useState(debtor&&creditor?(Math.min(-(balances[debtor.user_id]??0),balances[creditor.user_id]??0)/100).toFixed(2).replace(".",","):""),[note,setNote]=useState(""),[busy,setBusy]=useState(false);
+  const cents=parseCents(amount);
+  const save=async(e:FormEvent)=>{e.preventDefault();if(!cents||cents<=0||from===to)return;setBusy(true);const {error}=await supabase.rpc("save_shared_settlement",{_id:null,_space_id:spaceId,_occurred_on:date,_from_user_id:from,_to_user_id:to,_amount_cents:cents,_kind:"rimborso",_note:note.trim()||null,_linked_transaction_id:null});setBusy(false);if(error)toast.error(error.message);else{toast.success("Rimborso registrato");onSaved();onClose();}};
+  return <Modal title="Registra un rimborso" onClose={onClose}><form onSubmit={save} className="space-y-3"><div><Label>Chi paga</Label><Select value={from} onValueChange={setFrom}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{members.map(m=><SelectItem key={m.user_id} value={m.user_id}>{m.name}</SelectItem>)}</SelectContent></Select></div><div><Label>Chi riceve</Label><Select value={to} onValueChange={setTo}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{members.filter(m=>m.user_id!==from).map(m=><SelectItem key={m.user_id} value={m.user_id}>{m.name}</SelectItem>)}</SelectContent></Select></div><div className="grid grid-cols-2 gap-3"><div><Label>Data</Label><Input type="date" value={date} onChange={e=>setDate(e.target.value)} required/></div><div><Label>Importo</Label><Input value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0,00" required/></div></div><div><Label>Nota</Label><Input value={note} onChange={e=>setNote(e.target.value)} maxLength={200}/></div><div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={onClose}>Annulla</Button><Button type="submit" disabled={busy||!cents||cents<=0||from===to}>Registra rimborso</Button></div></form></Modal>;
 }
