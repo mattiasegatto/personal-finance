@@ -131,10 +131,19 @@ function Transactions() {
   return (
     <div>
       <PageHeader eyebrow="Spazio personale" title="Movimenti">
-        <Button onClick={() => setEditing("new")} disabled={noSetup}>
-          <Plus className="h-4 w-4" />
-          Nuovo movimento
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setEditingTransfer("new")}
+            disabled={data.accounts.filter((a) => !a.archived_at).length < 2}
+          >
+            Trasferimento
+          </Button>
+          <Button onClick={() => setEditing("new")} disabled={noSetup}>
+            <Plus className="h-4 w-4" />
+            Nuovo movimento
+          </Button>
+        </div>
       </PageHeader>
 
       {noSetup && (
@@ -249,7 +258,24 @@ function Transactions() {
                   <td className="p-3 text-right font-medium whitespace-nowrap">
                     {eur(row.data.amount_cents / 100)}
                   </td>
-                  <td className="p-3 text-right text-muted-foreground">Trasferimento</td>
+                  <td className="p-3 text-right whitespace-nowrap">
+                    <Button size="sm" variant="ghost" onClick={() => setEditingTransfer(row.data)}>
+                      Modifica
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-destructive"
+                      onClick={async () => {
+                        if (!confirm("Annullare questo trasferimento? Entrambi i movimenti collegati saranno stornati e i saldi aggiornati.")) return;
+                        const { error } = await supabase.rpc("delete_transfer", { _transfer: row.data.id });
+                        if (error) toast.error(errMsg(error));
+                        else { toast.success("Trasferimento annullato"); refresh(); }
+                      }}
+                    >
+                      Annulla
+                    </Button>
+                  </td>
                 </tr>
               ) : (
                 <tr key={row.data.id} className="border-b last:border-0" data-testid="tx-row">
@@ -288,6 +314,14 @@ function Transactions() {
         </table>
       </div>
 
+      {editingTransfer && (
+        <TransferDialog
+          transfer={editingTransfer === "new" ? null : editingTransfer}
+          data={data}
+          onClose={() => setEditingTransfer(null)}
+          onSaved={refresh}
+        />
+      )}
       {editing && (
         <TxDialog
           tx={editing === "new" ? null : editing}
@@ -440,6 +474,121 @@ function TxDialog({
             </Button>
             <Button type="submit" disabled={busy}>
               Salva
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+
+function TransferDialog({
+  transfer,
+  data,
+  onClose,
+  onSaved,
+}: {
+  transfer: Fin["transfers"][number] | null;
+  data: Fin;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const eligibleAccounts = data.accounts.filter(
+    (a) => !a.archived_at || a.id === transfer?.source_account_id || a.id === transfer?.destination_account_id,
+  );
+  const currencies = new Set(eligibleAccounts.map((a) => a.currency));
+  const [source, setSource] = useState(transfer?.source_account_id ?? eligibleAccounts[0]?.id ?? "");
+  const [destination, setDestination] = useState(
+    transfer?.destination_account_id ?? eligibleAccounts.find((a) => a.id !== (eligibleAccounts[0]?.id ?? ""))?.id ?? "",
+  );
+  const [date, setDate] = useState(transfer?.occurred_on ?? new Date().toISOString().slice(0, 10));
+  const [amount, setAmount] = useState(transfer ? centsToInput(transfer.amount_cents) : "");
+  const [desc, setDesc] = useState(transfer?.description ?? "");
+  const [busy, setBusy] = useState(false);
+  const sourceAccount = eligibleAccounts.find((a) => a.id === source);
+  const allowedDestinations = eligibleAccounts.filter(
+    (a) => a.id !== source && a.currency === sourceAccount?.currency,
+  );
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    const cents = parseCents(amount);
+    if (!cents) return void toast.error("L'importo deve essere positivo, con al massimo due decimali.");
+    if (!date) return void toast.error("Indica la data.");
+    if (!source || !destination || source === destination)
+      return void toast.error("Scegli due conti distinti.");
+    const destAccount = eligibleAccounts.find((a) => a.id === destination);
+    if (!sourceAccount || !destAccount || sourceAccount.currency !== destAccount.currency)
+      return void toast.error("I due conti devono avere la stessa valuta.");
+    setBusy(true);
+    const args = {
+      _source_account: source,
+      _destination_account: destination,
+      _amount_cents: cents,
+      _occurred_on: date,
+      _description: desc.trim() || null,
+    };
+    const result = transfer
+      ? await supabase.rpc("update_transfer", { _transfer: transfer.id, ...args })
+      : await supabase.rpc("create_transfer", args);
+    setBusy(false);
+    if (result.error) return void toast.error(errMsg(result.error));
+    toast.success(transfer ? "Trasferimento aggiornato" : "Trasferimento registrato");
+    onSaved();
+    onClose();
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{transfer ? "Modifica trasferimento" : "Nuovo trasferimento"}</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="transfer-date">Data</Label>
+              <Input id="transfer-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="transfer-amount">Importo</Label>
+              <Input id="transfer-amount" inputMode="decimal" placeholder="0,00" value={amount} onChange={(e) => setAmount(e.target.value)} />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Da conto</Label>
+            <Select value={source} onValueChange={(value) => {
+              setSource(value);
+              const next = eligibleAccounts.find((a) => a.id === value);
+              if (next && eligibleAccounts.find((a) => a.id === destination)?.currency !== next.currency) {
+                setDestination(eligibleAccounts.find((a) => a.id !== value && a.currency === next.currency)?.id ?? "");
+              }
+            }}>
+              <SelectTrigger aria-label="Conto di origine"><SelectValue placeholder="Scegli il conto di origine" /></SelectTrigger>
+              <SelectContent>
+                {eligibleAccounts.map((a) => <SelectItem key={a.id} value={a.id}>{a.name} · {a.currency}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>A conto</Label>
+            <Select value={destination} onValueChange={setDestination}>
+              <SelectTrigger aria-label="Conto di destinazione"><SelectValue placeholder="Scegli il conto di destinazione" /></SelectTrigger>
+              <SelectContent>
+                {allowedDestinations.map((a) => <SelectItem key={a.id} value={a.id}>{a.name} · {a.currency}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <p className="text-xs text-muted-foreground">Il trasferimento genera automaticamente l'uscita dal conto di origine e l'entrata sul conto di destinazione. Non viene conteggiato come entrata o spesa.</p>
+          <div className="space-y-1.5">
+            <Label htmlFor="transfer-desc">Descrizione (facoltativa)</Label>
+            <Input id="transfer-desc" value={desc} onChange={(e) => setDesc(e.target.value)} maxLength={200} />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>Chiudi</Button>
+            <Button type="submit" disabled={busy || eligibleAccounts.length < 2 || allowedDestinations.length === 0}>
+              {busy ? "Salvataggio…" : "Salva trasferimento"}
             </Button>
           </DialogFooter>
         </form>
