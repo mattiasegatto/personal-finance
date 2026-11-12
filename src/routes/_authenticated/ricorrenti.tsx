@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { financeQuery, errMsg, parseCents, type Direction } from "@/lib/finance";
+import { financeQuery, errMsg, localDateISO, parseCents, type Direction } from "@/lib/finance";
 
 export const Route = createFileRoute("/_authenticated/ricorrenti")({
   head: () => ({
@@ -238,7 +238,7 @@ function RecurringDialog({
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [frequency, setFrequency] = useState<"weekly" | "monthly" | "yearly">("monthly");
-  const [start, setStart] = useState(new Date().toISOString().slice(0, 10));
+  const [start, setStart] = useState(localDateISO());
   const [end, setEnd] = useState("");
   const [busy, setBusy] = useState(false);
   const submit = async (e: FormEvent) => {
