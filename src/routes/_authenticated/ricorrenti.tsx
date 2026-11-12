@@ -57,7 +57,6 @@ type Recurrence = {
   end_on: string | null;
   active: boolean;
 };
-const ALL = "__all__";
 const db = supabase as any;
 const money = (c: number, currency: string) =>
   new Intl.NumberFormat("it-IT", { style: "currency", currency }).format(c / 100);
@@ -86,10 +85,10 @@ function Recurring() {
     }
     setItems((rows ?? []) as Recurrence[]);
     setLoaded(true);
-  };
-  useState(() => {
+  }, [data.spaceId]);
+  useEffect(() => {
     void load();
-  });
+  }, [load]);
   const activeAccounts = data.accounts.filter((a) => !a.archived_at);
   const activeCategories = data.categories.filter((c) => !c.archived_at);
   const accountName = (id: string) => data.accounts.find((a) => a.id === id)?.name ?? "—";
