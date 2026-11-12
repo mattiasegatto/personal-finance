@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { financeQuery, errMsg, parseCents, centsToInput, type Direction } from "@/lib/finance";
+import { financeQuery, errMsg, parseCents, type Direction } from "@/lib/finance";
 
 export const Route = createFileRoute("/_authenticated/ricorrenti")({
   head: () => ({
@@ -57,7 +57,6 @@ type Recurrence = {
   end_on: string | null;
   active: boolean;
 };
-const db = supabase as any;
 const money = (c: number, currency: string) =>
   new Intl.NumberFormat("it-IT", { style: "currency", currency }).format(c / 100);
 const dateLabel = (s: string) =>
@@ -95,11 +94,11 @@ function Recurring() {
   const categoryName = (id: string) => data.categories.find((c) => c.id === id)?.label ?? "—";
   const act = async (item: Recurrence, confirm: boolean) => {
     const result = confirm
-      ? await db.rpc("confirm_recurring_item", {
+      ? await supabase.rpc("confirm_recurring_item", {
           _id: item.id,
           _expected_due: item.next_due_on,
         })
-      : await db.rpc("advance_recurring_due", {
+      : await supabase.rpc("advance_recurring_due", {
           _id: item.id,
           _expected_due: item.next_due_on,
         });
@@ -248,7 +247,7 @@ function RecurringDialog({
     if (!description.trim() || !cents || !account || !category || !start)
       return void toast.error("Completa tutti i campi obbligatori.");
     setBusy(true);
-    const { error } = await db.from("recurring_items").insert({
+    const { error } = await supabase.from("recurring_items").insert({
       space_id: data.spaceId,
       account_id: account,
       category_id: category,
