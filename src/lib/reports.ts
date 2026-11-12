@@ -2,10 +2,13 @@ import type { financeQuery } from "@/lib/finance";
 
 type Finance = Awaited<ReturnType<NonNullable<typeof financeQuery.queryFn>>>;
 
-export const monthKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+export const monthKey = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 export const monthTitle = (key: string) => {
   const [year, month] = key.split("-").map(Number);
-  return new Intl.DateTimeFormat("it-IT", { month: "short", year: "2-digit" }).format(new Date(year!, month! - 1, 1));
+  return new Intl.DateTimeFormat("it-IT", { month: "short", year: "2-digit" }).format(
+    new Date(year!, month! - 1, 1),
+  );
 };
 
 export function buildReport(data: Finance, currency: string, monthCount: number, now: Date) {
@@ -28,17 +31,28 @@ export function buildReport(data: Finance, currency: string, monthCount: number,
     if (tx.direction === "inflow") month.income += tx.amount_cents;
     else {
       month.expenses += tx.amount_cents;
-      const category = tx.category_id ? categories.get(tx.category_id) ?? "Senza categoria" : "Senza categoria";
+      const category = tx.category_id
+        ? (categories.get(tx.category_id) ?? "Senza categoria")
+        : "Senza categoria";
       byCategory.set(category, (byCategory.get(category) ?? 0) + tx.amount_cents);
     }
   }
   const income = months.reduce((sum, m) => sum + m.income, 0);
   const expenses = months.reduce((sum, m) => sum + m.expenses, 0);
-  const expenseCategories = [...byCategory].map(([category, amount]) => ({ category, amount })).sort((a, b) => b.amount - a.amount);
-  const highestExpenseMonth = [...months].sort((a, b) => b.expenses - a.expenses)[0]?.expenses ? [...months].sort((a, b) => b.expenses - a.expenses)[0]!.key : null;
+  const expenseCategories = [...byCategory]
+    .map(([category, amount]) => ({ category, amount }))
+    .sort((a, b) => b.amount - a.amount);
+  const highestExpenseMonth = [...months].sort((a, b) => b.expenses - a.expenses)[0]?.expenses
+    ? [...months].sort((a, b) => b.expenses - a.expenses)[0]!.key
+    : null;
   return {
-    months, income, expenses, net: income - expenses,
+    months,
+    income,
+    expenses,
+    net: income - expenses,
     savingsRate: income > 0 ? ((income - expenses) / income) * 100 : 0,
-    expenseCategories, transactionCount, highestExpenseMonth,
+    expenseCategories,
+    transactionCount,
+    highestExpenseMonth,
   };
 }
