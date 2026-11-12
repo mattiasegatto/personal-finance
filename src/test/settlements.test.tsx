@@ -84,5 +84,4 @@ describe("Rimborsi (demo)", () => {
       m2: -17.66,
     });
   });
-
 });
