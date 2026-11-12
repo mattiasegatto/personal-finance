@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
-import { useMemo, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { eur, dateFull } from "@/lib/domain";
 import { centsToInput, errMsg, financeQuery, parseCents, type Direction } from "@/lib/finance";
+import { buildMovementList, movementTotals } from "@/lib/movements";
 
 export const Route = createFileRoute("/_authenticated/movimenti")({
   head: () => ({
@@ -66,47 +67,15 @@ function Transactions() {
   const [to, setTo] = useState("");
   const accName = (id: string) => data.accounts.find((a) => a.id === id)?.name ?? "—";
 
-  const list = useMemo(() => {
-    const ordinary = data.transactions
-      .filter(
-        (t) =>
-          (acc === ALL || t.account_id === acc) &&
-          (dir === ALL || t.direction === dir) &&
-          (cat === ALL ||
-            t.category_id === cat ||
-            data.categories.find((c) => c.id === t.category_id)?.parent_id === cat) &&
-          (!from || t.occurred_on >= from) &&
-          (!to || t.occurred_on <= to) &&
-          (!q ||
-            ((t.description ?? "") + " " + t.categoryLabel)
-              .toLowerCase()
-              .includes(q.toLowerCase())),
-      )
-      .map((data) => ({ kind: "ordinary" as const, data }));
-    const transfers = data.transfers
-      .filter(
-        (t) =>
-          (acc === ALL || t.source_account_id === acc || t.destination_account_id === acc) &&
-          dir === ALL &&
-          cat === ALL &&
-          (!from || t.occurred_on >= from) &&
-          (!to || t.occurred_on <= to) &&
-          (!q || (t.description ?? "Trasferimento").toLowerCase().includes(q.toLowerCase())),
-      )
-      .map((data) => ({ kind: "transfer" as const, data }));
-    return [...ordinary, ...transfers].sort(
-      (a, b) =>
-        b.data.occurred_on.localeCompare(a.data.occurred_on) ||
-        b.data.created_at.localeCompare(a.data.created_at),
-    );
-  }, [data, q, acc, dir, cat, from, to]);
-  const ordinaryRows = list.filter((r) => r.kind === "ordinary");
-  const inflow = ordinaryRows
-    .filter((r) => r.data.direction === "inflow")
-    .reduce((sum, r) => sum + r.data.amount_cents, 0);
-  const outflow = ordinaryRows
-    .filter((r) => r.data.direction === "outflow")
-    .reduce((sum, r) => sum + r.data.amount_cents, 0);
+  const list = buildMovementList(data.transactions, data.transfers, data.categories, {
+    accountId: acc === ALL ? undefined : acc,
+    direction: dir === ALL ? "all" : dir,
+    categoryId: cat,
+    from,
+    to,
+    query: q,
+  });
+  const { inflow, outflow } = movementTotals(list);
   const remove = async (t: Tx) => {
     if (
       !confirm(
