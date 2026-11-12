@@ -68,7 +68,7 @@ create or replace function public.next_recurring_date(
 language plpgsql
 immutable
 set search_path = public
-as $
+as $function$
 declare
   target_month date;
   target_year integer;
@@ -94,7 +94,7 @@ begin
 
   return make_date(target_year, target_month_number, least(anchor_day, last_day));
 end;
-$;
+$function$;
 
 create or replace function public.advance_recurring_due(_id uuid, _expected_due date)
 returns date language plpgsql security definer set search_path = public as $$
