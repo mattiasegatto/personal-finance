@@ -669,6 +669,54 @@ export type Database = {
         Relationships: [];
       };
     };
+      recurring_items: {
+        Row: {
+          id: string; space_id: string; account_id: string; category_id: string;
+          direction: Database["public"]["Enums"]["tx_direction"]; amount_cents: number;
+          description: string; frequency: Database["public"]["Enums"]["recurrence_frequency"];
+          start_on: string; next_due_on: string; end_on: string | null; active: boolean;
+          created_by: string; created_at: string; updated_at: string;
+        };
+        Insert: {
+          id?: string; space_id: string; account_id: string; category_id: string;
+          direction: Database["public"]["Enums"]["tx_direction"]; amount_cents: number;
+          description: string; frequency: Database["public"]["Enums"]["recurrence_frequency"];
+          start_on: string; next_due_on: string; end_on?: string | null; active?: boolean;
+          created_by?: string; created_at?: string; updated_at?: string;
+        };
+        Update: {
+          id?: string; space_id?: string; account_id?: string; category_id?: string;
+          direction?: Database["public"]["Enums"]["tx_direction"]; amount_cents?: number;
+          description?: string; frequency?: Database["public"]["Enums"]["recurrence_frequency"];
+          start_on?: string; next_due_on?: string; end_on?: string | null; active?: boolean;
+          created_by?: string; created_at?: string; updated_at?: string;
+        };
+        Relationships: [];
+      };
+      deadlines: {
+        Row: {
+          id: string; space_id: string; account_id: string; category_id: string;
+          direction: Database["public"]["Enums"]["tx_direction"]; amount_cents: number;
+          title: string; due_on: string; notes: string | null;
+          status: Database["public"]["Enums"]["deadline_status"]; transaction_id: string | null;
+          created_by: string; created_at: string; updated_at: string; completed_at: string | null;
+        };
+        Insert: {
+          id?: string; space_id: string; account_id: string; category_id: string;
+          direction: Database["public"]["Enums"]["tx_direction"]; amount_cents: number;
+          title: string; due_on: string; notes?: string | null;
+          status?: Database["public"]["Enums"]["deadline_status"]; transaction_id?: string | null;
+          created_by?: string; created_at?: string; updated_at?: string; completed_at?: string | null;
+        };
+        Update: {
+          id?: string; space_id?: string; account_id?: string; category_id?: string;
+          direction?: Database["public"]["Enums"]["tx_direction"]; amount_cents?: number;
+          title?: string; due_on?: string; notes?: string | null;
+          status?: Database["public"]["Enums"]["deadline_status"]; transaction_id?: string | null;
+          created_by?: string; created_at?: string; updated_at?: string; completed_at?: string | null;
+        };
+        Relationships: [];
+      };
     Views: {
       net_worth_totals: {
         Row: {
@@ -705,6 +753,14 @@ export type Database = {
       };
     };
     Functions: {
+      next_recurring_date: {
+        Args: { _start: string; _current: string; _frequency: Database["public"]["Enums"]["recurrence_frequency"] };
+        Returns: string;
+      };
+      advance_recurring_due: { Args: { _id: string; _expected_due: string }; Returns: string };
+      confirm_recurring_item: { Args: { _id: string; _expected_due: string }; Returns: string };
+      complete_deadline: { Args: { _id: string }; Returns: string };
+      cancel_deadline: { Args: { _id: string }; Returns: undefined };
       save_shared_expense: {
         Args: {
           _id: string | null;
@@ -807,6 +863,8 @@ export type Database = {
       space_role: "owner" | "member" | "viewer";
       tx_direction: "inflow" | "outflow";
       tx_operation: "ordinary" | "transfer";
+      recurrence_frequency: "weekly" | "monthly" | "yearly";
+      deadline_status: "pending" | "completed" | "cancelled";
     };
     CompositeTypes: {
       [_ in never]: never;
@@ -935,6 +993,8 @@ export const Constants = {
       space_role: ["owner", "member", "viewer"],
       tx_direction: ["inflow", "outflow"],
       tx_operation: ["ordinary", "transfer"],
+      recurrence_frequency: ["weekly", "monthly", "yearly"],
+      deadline_status: ["pending", "completed", "cancelled"],
     },
   },
 } as const;
