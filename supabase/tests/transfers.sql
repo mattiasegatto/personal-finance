@@ -23,7 +23,14 @@ begin
   insert into public.accounts(space_id,name,initial_balance_cents) values (sa,'Destinazione',20000) returning id into a2;
   insert into public.accounts(space_id,name,initial_balance_cents) values (sa,'Valuta diversa',0) returning id into a3;
   update public.accounts set currency='USD' where id=a3;
+  -- Crea il conto B nel suo spazio con il contesto autorizzativo corretto.
+  execute 'reset role';
+  perform set_config('request.jwt.claims', json_build_object('sub',ub,'role','authenticated','email','fd@test.local')::text, true);
+  execute 'set local role authenticated';
   insert into public.accounts(space_id,name) values (sb,'Conto B') returning id into b1;
+  execute 'reset role';
+  perform set_config('request.jwt.claims', json_build_object('sub',ua,'role','authenticated','email','fc@test.local')::text, true);
+  execute 'set local role authenticated';
 
   -- 1 creazione e due gambe coerenti
   tid := public.create_transfer(a1,a2,25000,'2026-11-10','Giroconto test');
