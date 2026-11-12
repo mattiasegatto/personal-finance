@@ -154,7 +154,8 @@ function SharedPage() {
     queryKey: ["personal-outflows-for-link", personalSpaceId],
     enabled: !!personalSpaceId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("transactions")
+      const { data, error } = await supabase
+        .from("transactions")
         .select("id,occurred_on,description,amount_cents")
         .eq("space_id", personalSpaceId!)
         .eq("direction", "outflow")
@@ -531,7 +532,8 @@ function ExpenseDialog({
     queryKey: ["personal-outflows-for-link", personalSpaceId],
     enabled: !!personalSpaceId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("transactions")
+      const { data, error } = await supabase
+        .from("transactions")
         .select("id,occurred_on,description,amount_cents")
         .eq("space_id", personalSpaceId!)
         .eq("direction", "outflow")
@@ -583,8 +585,14 @@ function ExpenseDialog({
     }
     setBusy(true);
     if (initial?.linked_transaction_id && !linkedTransaction) {
-      const { error: unlinkError } = await supabase.rpc("unlink_shared_expense_transaction", { _id: initial.id });
-      if (unlinkError) { setBusy(false); toast.error(unlinkError.message); return; }
+      const { error: unlinkError } = await supabase.rpc("unlink_shared_expense_transaction", {
+        _id: initial.id,
+      });
+      if (unlinkError) {
+        setBusy(false);
+        toast.error(unlinkError.message);
+        return;
+      }
     }
     const { error } = await supabase.rpc("save_shared_expense", {
       _id: initial?.id ?? null,
@@ -670,8 +678,13 @@ function ExpenseDialog({
         </div>
         <div>
           <Label>Movimento personale collegato (facoltativo)</Label>
-          <Select value={linkedTransaction || "none"} onValueChange={(v) => setLinkedTransaction(v === "none" ? "" : v)}>
-            <SelectTrigger><SelectValue placeholder="Nessun collegamento" /></SelectTrigger>
+          <Select
+            value={linkedTransaction || "none"}
+            onValueChange={(v) => setLinkedTransaction(v === "none" ? "" : v)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Nessun collegamento" />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">Nessun collegamento</SelectItem>
               {(txQuery.data ?? []).map((t) => (
@@ -681,8 +694,15 @@ function ExpenseDialog({
               ))}
             </SelectContent>
           </Select>
-          <p className="mt-1 text-xs text-muted-foreground">Sono selezionabili solo uscite del tuo spazio personale. L'importo deve coincidere esattamente con quello della spesa e il pagatore deve essere tu.</p>
-          {initial?.linked_transaction_id && <p className="text-xs text-muted-foreground">Per cambiare il pagatore, prima scollega il movimento.</p>}
+          <p className="mt-1 text-xs text-muted-foreground">
+            Sono selezionabili solo uscite del tuo spazio personale. L'importo deve coincidere
+            esattamente con quello della spesa e il pagatore deve essere tu.
+          </p>
+          {initial?.linked_transaction_id && (
+            <p className="text-xs text-muted-foreground">
+              Per cambiare il pagatore, prima scollega il movimento.
+            </p>
+          )}
         </div>
         <div className="space-y-2">
           <Label>Quote individuali (predefinite 50/50 o ripartite equamente)</Label>
@@ -835,8 +855,13 @@ function SettlementDialog({
         </div>
         <div>
           <Label>Movimento personale collegato (facoltativo)</Label>
-          <Select value={linkedTransaction || "none"} onValueChange={(v) => setLinkedTransaction(v === "none" ? "" : v)}>
-            <SelectTrigger><SelectValue placeholder="Nessun collegamento" /></SelectTrigger>
+          <Select
+            value={linkedTransaction || "none"}
+            onValueChange={(v) => setLinkedTransaction(v === "none" ? "" : v)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Nessun collegamento" />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">Nessun collegamento</SelectItem>
               {(txQuery.data ?? []).map((t) => (
@@ -846,7 +871,9 @@ function SettlementDialog({
               ))}
             </SelectContent>
           </Select>
-          <p className="mt-1 text-xs text-muted-foreground">Collega l'uscita personale con importo identico, effettuata da chi paga il rimborso.</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Collega l'uscita personale con importo identico, effettuata da chi paga il rimborso.
+          </p>
         </div>
         <div>
           <Label>Nota</Label>
