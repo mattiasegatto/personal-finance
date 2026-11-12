@@ -135,6 +135,7 @@ function SharedPage() {
   const members = data?.members ?? [],
     expenses = data?.expenses ?? [],
     settlements = data?.settlements ?? [];
+  const personalSpaceId = spacesData.spaces.find((s) => s.kind === "personal")?.id;
   const balances = useMemo(() => {
     const b: Record<string, number> = {};
     const add = (id: string, v: number) => {
@@ -150,26 +151,23 @@ function SharedPage() {
     });
     return b;
   }, [expenses, settlements]);
-  const txQuery = useQuery({
-    queryKey: ["personal-outflows-for-link", personalSpaceId],
-    enabled: !!personalSpaceId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("transactions")
-        .select("id,occurred_on,description,amount_cents")
-        .eq("space_id", personalSpaceId!)
-        .eq("direction", "outflow")
-        .is("deleted_at", null)
-        .order("occurred_on", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-  const [linkedTransaction, setLinkedTransaction] = useState(initial?.linked_transaction_id ?? "");
-  const debtor = members.find((m) => (balances[m.user_id] ?? 0) < 0),
-    creditor = members.find((m) => (balances[m.user_id] ?? 0) > 0);
+  const debtors = members.filter((m) => (balances[m.user_id] ?? 0) < 0);
+  const creditors = members.filter((m) => (balances[m.user_id] ?? 0) > 0);
+  const suggestions = useMemo(() => {
+    const ds = debtors.map((m) => ({ id: m.user_id, left: -(balances[m.user_id] ?? 0) }));
+    const cs = creditors.map((m) => ({ id: m.user_id, left: balances[m.user_id] ?? 0 }));
+    const result: { from: string; to: string; amount: number }[] = [];
+    let di = 0, ci = 0;
+    while (di < ds.length && ci < cs.length) {
+      const amount = Math.min(ds[di].left, cs[ci].left);
+      if (amount > 0) result.push({ from: ds[di].id, to: cs[ci].id, amount });
+      ds[di].left -= amount; cs[ci].left -= amount;
+      if (ds[di].left === 0) di++;
+      if (cs[ci].left === 0) ci++;
+    }
+    return result;
+  }, [debtors, creditors, balances]);
   const canEdit = space?.myRole === "owner" || space?.myRole === "member";
-  const personalSpaceId = spacesData.spaces.find((s) => s.kind === "personal")?.id;
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ["shared-finance", space?.id] });
   };
@@ -303,15 +301,17 @@ function SharedPage() {
           </div>
           <section className="mt-4 rounded-2xl border bg-card p-5">
             <p className="text-sm text-muted-foreground">Situazione complessiva</p>
-            {debtor && creditor ? (
-              <p className="mt-2">
-                <strong>{debtor.name}</strong> deve versare a <strong>{creditor.name}</strong>{" "}
-                <strong className="num">
-                  {money(
-                    Math.min(-(balances[debtor.user_id] ?? 0), balances[creditor.user_id] ?? 0),
-                  )}
-                </strong>
-              </p>
+            {suggestions.length ? (
+              <div className="mt-2 space-y-2">
+                {suggestions.map((s, i) => (
+                  <p key={s.from + s.to + i} className="text-sm">
+                    <strong>{members.find((m) => m.user_id === s.from)?.name}</strong> deve versare a{" "}
+                    <strong>{members.find((m) => m.user_id === s.to)?.name}</strong>{" "}
+                    <strong className="num">{money(s.amount)}</strong>
+                  </p>
+                ))}
+                <p className="text-xs text-muted-foreground">Proposta di pareggio per tutti i partecipanti.</p>
+              </div>
             ) : (
               <p className="mt-2 font-semibold">Tutti i saldi sono in pari.</p>
             )}
@@ -564,6 +564,19 @@ function ExpenseDialog({
         : {},
     ),
     [busy, setBusy] = useState(false);
+  const txQuery = useQuery({
+    queryKey: ["personal-outflows-for-link", personalSpaceId],
+    enabled: !!personalSpaceId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("transactions")
+        .select("id,occurred_on,description,amount_cents")
+        .eq("space_id", personalSpaceId!).eq("direction", "outflow")
+        .is("deleted_at", null).order("occurred_on", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const [linkedTransaction, setLinkedTransaction] = useState(initial?.linked_transaction_id ?? "");
   const cents = parseCents(amount);
   const equal = active.length && cents !== null ? Math.floor(cents / active.length) : 0;
   const split = active.map((m, i) => ({
@@ -760,10 +773,10 @@ function SettlementDialog({
 }) {
   const debtor = members.find((m) => (balances[m.user_id] ?? 0) < 0),
     creditor = members.find((m) => (balances[m.user_id] ?? 0) > 0);
-  const [from, setFrom] = useState(initial?.from_user_id ?? debtor?.user_id ?? uid),
+  const [from, setFrom] = useState(initial?.from_user_id ?? suggestions[0]?.from ?? uid),
     [to, setTo] = useState(
       initial?.to_user_id ??
-        creditor?.user_id ??
+        suggestions[0]?.to ??
         members.find((m) => m.user_id !== uid)?.user_id ??
         "",
     ),
@@ -771,14 +784,25 @@ function SettlementDialog({
     [amount, setAmount] = useState(
       initial
         ? (initial.amount_cents / 100).toFixed(2).replace(".", ",")
-        : debtor && creditor
-          ? (Math.min(-(balances[debtor.user_id] ?? 0), balances[creditor.user_id] ?? 0) / 100)
-              .toFixed(2)
-              .replace(".", ",")
+        : suggestions[0]
+          ? (suggestions[0].amount / 100).toFixed(2).replace(".", ",")
           : "",
     ),
     [note, setNote] = useState(initial?.note ?? ""),
     [busy, setBusy] = useState(false);
+  const txQuery = useQuery({
+    queryKey: ["personal-outflows-for-link", personalSpaceId],
+    enabled: !!personalSpaceId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("transactions")
+        .select("id,occurred_on,description,amount_cents")
+        .eq("space_id", personalSpaceId!).eq("direction", "outflow")
+        .is("deleted_at", null).order("occurred_on", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const [linkedTransaction, setLinkedTransaction] = useState(initial?.linked_transaction_id ?? "");
   const cents = parseCents(amount);
   const save = async (e: FormEvent) => {
     e.preventDefault();
@@ -884,7 +908,7 @@ function SettlementDialog({
             Annulla
           </Button>
           <Button type="submit" disabled={busy || !cents || cents <= 0 || from === to}>
-            Registra rimborso
+            {initial ? "Salva modifiche" : "Registra rimborso"}
           </Button>
         </div>
       </form>
