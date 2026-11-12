@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -74,7 +74,7 @@ function Recurring() {
     await qc.invalidateQueries({ queryKey: ["finance"] });
     await load();
   };
-  const load = async () => {
+  const load = useCallback(async () => {
     const { data: rows, error } = await supabase
       .from("recurring_items")
       .select("*")
