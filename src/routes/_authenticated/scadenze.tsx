@@ -66,7 +66,7 @@ function Deadlines() {
   const [dialog, setDialog] = useState(false);
   const [filter, setFilter] = useState<"pending" | "all">("pending");
   const load = useCallback(async () => {
-    const { data: rows, error } = await db
+    const { data: rows, error } = await supabase
       .from("deadlines")
       .select("*")
       .eq("space_id", data.spaceId)
@@ -263,7 +263,7 @@ function DeadlineDialog({
     if (!title.trim() || !cents || !account || !category || !due)
       return void toast.error("Completa tutti i campi obbligatori.");
     setBusy(true);
-    const { error } = await db.from("deadlines").insert({
+    const { error } = await supabase.from("deadlines").insert({
       space_id: data.spaceId,
       account_id: account,
       category_id: category,
