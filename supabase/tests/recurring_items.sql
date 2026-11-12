@@ -21,6 +21,18 @@ begin
      or public.next_recurring_date(date '2024-02-29', date '2027-02-28', 'yearly') <> date '2028-02-29' then
     raise exception 'Ricorrenza annuale non gestisce correttamente gli anni bisestili';
   end if;
+  begin
+    update public.accounts set archived_at=now() where id=a;
+    raise exception 'Archiviazione conto con ricorrenza attiva non bloccata';
+  exception when others then
+    if sqlerrm not like '%ricorrenza attiva%' then raise; end if;
+  end;
+  begin
+    update public.categories set archived_at=now() where id=c;
+    raise exception 'Archiviazione categoria con ricorrenza attiva non bloccata';
+  exception when others then
+    if sqlerrm not like '%ricorrenza attiva%' then raise; end if;
+  end;
   tx := public.confirm_recurring_item(r,d);
   if not exists(select 1 from public.transactions where id=tx and amount_cents=1234 and occurred_on=d) then
     raise exception 'Movimento non creato correttamente';
@@ -34,6 +46,6 @@ begin
   exception when others then
     if sqlerrm not like '%modificata o disattivata%' then raise; end if;
   end;
-  raise exception 'ALL_PASSED: ricorrenza confermata, avanzamento data e doppia conferma bloccata';
+  raise exception 'ALL_PASSED: riferimenti attivi protetti, ricorrenza confermata, avanzamento data e doppia conferma bloccata';
 end $$;
 rollback;
