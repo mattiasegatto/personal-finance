@@ -60,6 +60,42 @@ end $$;
 create trigger recurring_items_guard before insert or update on public.recurring_items
 for each row execute function public.guard_recurring_item();
 
+create or replace function public.next_recurring_date(
+  _start date,
+  _current date,
+  _frequency public.recurrence_frequency
+) returns date
+language plpgsql
+immutable
+set search_path = public
+as $
+declare
+  target_month date;
+  target_year integer;
+  target_month_number integer;
+  anchor_day integer;
+  last_day integer;
+begin
+  if _frequency = 'weekly' then
+    return _current + 7;
+  elsif _frequency = 'monthly' then
+    target_month := (date_trunc('month', _current) + interval '1 month')::date;
+    target_year := extract(year from target_month)::integer;
+    target_month_number := extract(month from target_month)::integer;
+  else
+    target_year := extract(year from _current)::integer + 1;
+    target_month_number := extract(month from _start)::integer;
+  end if;
+
+  anchor_day := extract(day from _start)::integer;
+  last_day := extract(day from (
+    make_date(target_year, target_month_number, 1) + interval '1 month - 1 day'
+  ))::integer;
+
+  return make_date(target_year, target_month_number, least(anchor_day, last_day));
+end;
+$;
+
 create or replace function public.advance_recurring_due(_id uuid, _expected_due date)
 returns date language plpgsql security definer set search_path = public as $$
 declare r public.recurring_items; next_date date;
@@ -69,11 +105,7 @@ begin
     raise exception 'Ricorrenza non disponibile.';
   end if;
   if not r.active or r.next_due_on <> _expected_due then raise exception 'La ricorrenza è stata modificata o disattivata.'; end if;
-  next_date := case r.frequency
-    when 'weekly' then (r.next_due_on + interval '7 days')::date
-    when 'monthly' then (r.next_due_on + interval '1 month')::date
-    when 'yearly' then (r.next_due_on + interval '1 year')::date
-  end;
+  next_date := public.next_recurring_date(r.start_on, r.next_due_on, r.frequency);
   update public.recurring_items
     set next_due_on = next_date,
         active = (r.end_on is null or next_date <= r.end_on)
@@ -95,11 +127,7 @@ begin
   insert into public.transactions(space_id, account_id, category_id, direction, amount_cents, occurred_on, description)
   values (r.space_id, r.account_id, r.category_id, r.direction, r.amount_cents, r.next_due_on, r.description)
   returning id into tx;
-  next_date := case r.frequency
-    when 'weekly' then (r.next_due_on + interval '7 days')::date
-    when 'monthly' then (r.next_due_on + interval '1 month')::date
-    when 'yearly' then (r.next_due_on + interval '1 year')::date
-  end;
+  next_date := public.next_recurring_date(r.start_on, r.next_due_on, r.frequency);
   update public.recurring_items
     set next_due_on = next_date,
         active = (r.end_on is null or next_date <= r.end_on)
