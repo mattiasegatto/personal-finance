@@ -9,7 +9,8 @@ begin
   perform set_config('request.jwt.claim.role','authenticated',true);
   select id into s from public.spaces where created_by=u and kind='personal';
   insert into public.accounts(space_id,name,type,currency) values(s,'Test conto','checking','EUR') returning id into a;
-  insert into public.categories(space_id,kind,name) values(s,'expense','Test spese') returning id into c;\n  insert into public.categories(space_id,parent_id,name) values(s,c,'Test sottocategoria') returning id into subc;
+  insert into public.categories(space_id,kind,name) values(s,'expense','Test spese') returning id into c;
+  insert into public.categories(space_id,parent_id,name) values(s,c,'Test sottocategoria') returning id into subc;
   insert into public.recurring_items(space_id,account_id,category_id,direction,amount_cents,description,frequency,start_on,next_due_on)
   values(s,a,subc,'outflow',1234,'Test mensile','monthly',d,d) returning id into r;
   if public.next_recurring_date(date '2026-01-31', date '2026-01-31', 'monthly') <> date '2026-02-28'
@@ -35,7 +36,14 @@ begin
     if sqlerrm = 'TEST_FAILURE_CATEGORY_ARCHIVE_WAS_ALLOWED' then raise; end if;
     if sqlerrm not like '%ricorrenza attiva%' then raise; end if;
   end;
-  begin\n    update public.categories set archived_at=now() where id=c;\n    raise exception 'TEST_FAILURE_PARENT_CATEGORY_ARCHIVE_WAS_ALLOWED';\n  exception when others then\n    if sqlerrm = 'TEST_FAILURE_PARENT_CATEGORY_ARCHIVE_WAS_ALLOWED' then raise; end if;\n    if sqlerrm not like '%ricorrenza attiva%' then raise; end if;\n  end;\n  tx := public.confirm_recurring_item(r,d);
+  begin
+    update public.categories set archived_at=now() where id=c;
+    raise exception 'TEST_FAILURE_PARENT_CATEGORY_ARCHIVE_WAS_ALLOWED';
+  exception when others then
+    if sqlerrm = 'TEST_FAILURE_PARENT_CATEGORY_ARCHIVE_WAS_ALLOWED' then raise; end if;
+    if sqlerrm not like '%ricorrenza attiva%' then raise; end if;
+  end;
+  tx := public.confirm_recurring_item(r,d);
   if not exists(select 1 from public.transactions where id=tx and amount_cents=1234 and occurred_on=d) then
     raise exception 'Movimento non creato correttamente';
   end if;
@@ -48,6 +56,16 @@ begin
   exception when others then
     if sqlerrm not like '%modificata o disattivata%' then raise; end if;
   end;
-  update public.recurring_items set active=false where id=r;\n  update public.categories set archived_at=now() where id=c;\n  begin\n    insert into public.recurring_items(space_id,account_id,category_id,direction,amount_cents,description,frequency,start_on,next_due_on)\n    values(s,a,subc,'outflow',1234,'Test padre archiviato','monthly',d,d);\n    raise exception 'TEST_FAILURE_RECURRING_UNDER_ARCHIVED_PARENT_WAS_ALLOWED';\n  exception when others then\n    if sqlerrm = 'TEST_FAILURE_RECURRING_UNDER_ARCHIVED_PARENT_WAS_ALLOWED' then raise; end if;\n    if sqlerrm not like '%categoria padre è archiviata%' then raise; end if;\n  end;\n  raise exception 'ALL_PASSED: riferimenti attivi protetti, padre categoria protetto, ricorrenza confermata e doppia conferma bloccata';
+  update public.recurring_items set active=false where id=r;
+  update public.categories set archived_at=now() where id=c;
+  begin
+    insert into public.recurring_items(space_id,account_id,category_id,direction,amount_cents,description,frequency,start_on,next_due_on)
+    values(s,a,subc,'outflow',1234,'Test padre archiviato','monthly',d,d);
+    raise exception 'TEST_FAILURE_RECURRING_UNDER_ARCHIVED_PARENT_WAS_ALLOWED';
+  exception when others then
+    if sqlerrm = 'TEST_FAILURE_RECURRING_UNDER_ARCHIVED_PARENT_WAS_ALLOWED' then raise; end if;
+    if sqlerrm not like '%categoria padre è archiviata%' then raise; end if;
+  end;
+  raise exception 'ALL_PASSED: riferimenti attivi protetti, padre categoria protetto, ricorrenza confermata e doppia conferma bloccata';
 end $$;
 rollback;
