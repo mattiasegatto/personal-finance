@@ -92,7 +92,47 @@ select pg_temp.check('C rimosso non vede più i profili di A e B', (select count
 reset role;
 set local role anon;
 select pg_temp.check('anonimo non legge spazi', pg_temp.fails($$select count(*) from public.spaces$$));
-select pg_temp.check('anonimo non crea spazi', pg_temp.fails($$select public.create_shared_space('x')$$));
+select pg_temp.check('anonimo non crea spazi', pg_temp.fails($select public.create_shared_space('x')$));
+select pg_temp.check(
+  'anonimo non ha TRUNCATE sulle tabelle finanziarie',
+  not exists (
+    select 1
+    from unnest(array[
+      'accounts','categories','transactions','transaction_revisions','transfers',
+      'transfer_transaction_links','investments','financial_debts','shared_expenses',
+      'shared_expense_shares','shared_settlements','recurring_items','deadlines'
+    ]) as t(table_name)
+    where has_table_privilege('anon', format('public.%I', t.table_name), 'TRUNCATE')
+  )
+);
+select pg_temp.check(
+  'anonimo non esegue funzioni SECURITY DEFINER applicative',
+  not exists (
+    select 1
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.prosecdef
+      and p.prorettype <> 'trigger'::regtype
+      and has_function_privilege('anon', p.oid, 'EXECUTE')
+  )
+);
+select pg_temp.check(
+  'RLS attivo su tutte le tabelle applicative',
+  not exists (
+    select 1
+    from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public'
+      and c.relname = any(array[
+        'profiles','spaces','space_memberships','space_invitations',
+        'accounts','categories','transactions','transaction_revisions','transfers',
+        'transfer_transaction_links','investments','financial_debts','shared_expenses',
+        'shared_expense_shares','shared_settlements','recurring_items','deadlines'
+      ])
+      and c.relrowsecurity is not true
+  )
+);
 
 reset role;
 select json_agg(json_build_object('test',test,'ok',ok)) as risultati, count(*) filter (where ok) as superati, count(*) as totali from _r;
