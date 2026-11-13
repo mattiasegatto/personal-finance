@@ -63,7 +63,10 @@ grant update (status) on public.space_invitations to authenticated;
 drop policy if exists "invitations: owner revoca" on public.space_invitations;
 create policy "invitations: owner revoca" on public.space_invitations
 for update to authenticated
-using (public.has_space_role(space_id, auth.uid(), array['owner']::public.space_role[]))
+using (
+  public.has_space_role(space_id, auth.uid(), array['owner']::public.space_role[])
+  and status = 'pending'
+)
 with check (
   public.has_space_role(space_id, auth.uid(), array['owner']::public.space_role[])
   and status = 'revoked'
