@@ -28,18 +28,21 @@ jobs:
       - name: Start local Supabase stack
         run: supabase start
 
+      - name: Resolve local database container
+        run: echo "SUPABASE_DB_CONTAINER=$(docker ps --format '{{.Names}}' | grep '^supabase_db_' | head -n 1)" >> "$GITHUB_ENV"
+
       - name: Rebuild database from migrations
         run: supabase db reset
 
       - name: Run space and membership isolation tests
         run: |
-          docker exec -i supabase_db_fwpycxrnkzaguulxkcqt psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 < supabase/tests/rls_isolation.sql
+          docker exec -i "$SUPABASE_DB_CONTAINER" psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 < supabase/tests/rls_isolation.sql
 
       - name: Run personal finance isolation tests
         shell: bash
         run: |
           set +e
-          output=$(docker exec -i supabase_db_fwpycxrnkzaguulxkcqt psql --username postgres --dbname postgres --set ON_ERROR_STOP=0 < supabase/tests/finance_isolation.sql 2>&1)
+          output=$(docker exec -i "$SUPABASE_DB_CONTAINER" psql --username postgres --dbname postgres --set ON_ERROR_STOP=0 < supabase/tests/finance_isolation.sql 2>&1)
           status=$?
           set -e
           printf '%s\\n' "$output"
@@ -52,7 +55,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          output=$(docker exec -i supabase_db_fwpycxrnkzaguulxkcqt psql --username postgres --dbname postgres --set ON_ERROR_STOP=0 < supabase/tests/transfers.sql 2>&1)
+          output=$(docker exec -i "$SUPABASE_DB_CONTAINER" psql --username postgres --dbname postgres --set ON_ERROR_STOP=0 < supabase/tests/transfers.sql 2>&1)
           status=$?
           set -e
           printf '%s\\n' "$output"
@@ -65,7 +68,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          output=$(docker exec -i supabase_db_fwpycxrnkzaguulxkcqt psql --username postgres --dbname postgres --set ON_ERROR_STOP=0 < supabase/tests/shared_expenses.sql 2>&1)
+          output=$(docker exec -i "$SUPABASE_DB_CONTAINER" psql --username postgres --dbname postgres --set ON_ERROR_STOP=0 < supabase/tests/shared_expenses.sql 2>&1)
           status=$?
           set -e
           printf '%s\\n' "$output"
@@ -78,7 +81,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          output=$(docker exec -i supabase_db_fwpycxrnkzaguulxkcqt psql --username postgres --dbname postgres --set ON_ERROR_STOP=0 < supabase/tests/deadlines.sql 2>&1)
+          output=$(docker exec -i "$SUPABASE_DB_CONTAINER" psql --username postgres --dbname postgres --set ON_ERROR_STOP=0 < supabase/tests/deadlines.sql 2>&1)
           status=$?
           set -e
           printf '%s\\n' "$output"
@@ -91,7 +94,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          output=$(docker exec -i supabase_db_fwpycxrnkzaguulxkcqt psql --username postgres --dbname postgres --set ON_ERROR_STOP=0 < supabase/tests/recurring_items.sql 2>&1)
+          output=$(docker exec -i "$SUPABASE_DB_CONTAINER" psql --username postgres --dbname postgres --set ON_ERROR_STOP=0 < supabase/tests/recurring_items.sql 2>&1)
           status=$?
           set -e
           printf '%s\\n' "$output"
@@ -104,7 +107,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          output=$(docker exec -i supabase_db_fwpycxrnkzaguulxkcqt psql --username postgres --dbname postgres --set ON_ERROR_STOP=0 < supabase/tests/investments_debts.sql 2>&1)
+          output=$(docker exec -i "$SUPABASE_DB_CONTAINER" psql --username postgres --dbname postgres --set ON_ERROR_STOP=0 < supabase/tests/investments_debts.sql 2>&1)
           status=$?
           set -e
           printf '%s\\n' "$output"
@@ -112,3 +115,6 @@ jobs:
             echo "Investment/debt checks did not reach their expected success marker (psql exit: $status)."
             exit 1
           fi
+
+      - name: Run concurrent write and archival tests
+        run: bash supabase/tests/concurrency.sh
