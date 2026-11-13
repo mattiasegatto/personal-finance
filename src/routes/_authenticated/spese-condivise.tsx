@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { spacesQuery } from "@/lib/spaces";
-import { parseCents } from "@/lib/finance";
+import { localDateISO, parseCents } from "@/lib/finance";
 
 export const Route = createFileRoute("/_authenticated/spese-condivise")({
   loader: ({ context }) => context.queryClient.ensureQueryData(spacesQuery),
@@ -54,7 +54,7 @@ type Category = {
 };
 const money = (c: number) =>
   new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(c / 100);
-const today = () => new Date().toISOString().slice(0, 10);
+const today = localDateISO;
 
 function SharedPage() {
   const { data: spacesData } = useSuspenseQuery(spacesQuery);
