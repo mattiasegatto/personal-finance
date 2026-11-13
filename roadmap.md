@@ -13,26 +13,30 @@ Il branch operativo è `migration/standalone-stack`. Il database usa Supabase Po
 - [x] Investimenti e debiti.
 - [x] Ricorrenze e scadenze con conferma atomica e controlli sui riferimenti.
 - [x] Protezioni di archiviazione per conti e categorie referenziati da piani finanziari attivi.
-- [x] Test SQL di isolamento e integrità per spazi, finanze, trasferimenti, spese condivise, scadenze, ricorrenze, investimenti e debiti.
-- [x] Pipeline CI per installazione, lint, test, build e ricostruzione del database locale.
+- [x] Serializzazione delle scritture concorrenti con archiviazione di conti e categorie.
+- [x] Integrità dei collegamenti tra movimenti personali, spese condivise e rimborsi.
+- [x] Restrizione delle funzioni di membership all'utente autenticato, senza interrogazioni sui ruoli di terzi.
+- [x] Inviti modificabili dal client solo per la revoca di inviti pendenti.
+- [x] Scrittura delle spese condivise consentita solo tramite RPC validate.
+- [x] Verifiche RLS, privilegi anonimi, isolamento e integrità per tutte le aree finanziarie.
+- [x] Test di concorrenza con sessioni PostgreSQL indipendenti per conti, categorie, ricorrenze e scadenze.
 - [x] Migrazione a uno stack autonomo basato su React, TanStack Start, Supabase e Bun.
-- [x] Rimozione dei metadati e dei documenti specifici di strumenti precedenti.
+- [x] Rimozione dei metadati, delle configurazioni e dei riferimenti operativi della piattaforma precedente.
 - [x] Rimozione del sistema di migrazioni Drizzle duplicato: Supabase SQL è l'unica fonte autorevole.
 - [x] Rigenerazione del lockfile dopo la rimozione delle dipendenze Drizzle.
+- [x] Pipeline frontend resa read-only: formattazione verificata senza commit automatici da CI.
 
 ## Lavori in corso
 
-- [ ] Completare la verifica CI sul commit che include la pulizia e il lockfile aggiornato.
-- [ ] Aggiungere test di concorrenza con transazioni PostgreSQL indipendenti per archiviazione di conti/categorie e creazione di ricorrenze/scadenze.
-- [ ] Verificare l'ordine di acquisizione dei lock e l'assenza di deadlock nei percorsi concorrenti.
-- [ ] Eseguire una revisione completa di trigger, policy RLS, grant, RPC e vincoli cross-space.
-- [ ] Verificare che tutte le configurazioni e le istruzioni operative siano coerenti con lo stack corrente.
-- [ ] Eseguire un controllo finale delle dipendenze, delle variabili d'ambiente e della gestione dei segreti.
+- [ ] Confermare il completamento della pipeline database sul commit più recente, che include l'ultima restrizione della revoca degli inviti.
+- [ ] Concludere la revisione finale di trigger, policy RLS, grant, RPC e vincoli cross-space.
+- [ ] Verificare la configurazione di produzione e definire la gestione dei segreti in base all'hosting scelto.
 
 ## Rilascio
 
-- [ ] Preparare una procedura riproducibile di deploy e backup/restore.
-- [ ] Verificare il comportamento dell'applicazione in un ambiente di staging con account di prova.
+- [ ] Scegliere e configurare l'ambiente di hosting e staging.
+- [ ] Preparare una procedura riproducibile di deploy e backup/restore, coerente con il piano del servizio scelto.
+- [ ] Verificare l'applicazione in staging con account di prova.
 - [ ] Concludere la revisione del branch operativo.
 - [ ] Promuovere le modifiche a `main` solo dopo validazione completa e approvazione esplicita.
 
