@@ -68,8 +68,13 @@ begin
     or not exists(select 1 from public.shared_settlements where id=settlement_id) then
     raise exception 'FAIL membro non legge dati condivisi'; end if; n:=n+1;
   if exists(select 1 from public.transactions where id=tx_id) then raise exception 'FAIL membro vede movimento personale altrui'; end if; n:=n+1;
-  update public.shared_expenses set description='Tentativo modifica' where id=v_expense_id;
-  if (select description from public.shared_expenses where id=v_expense_id)<>'Cambio pagatore' then
+  begin
+    update public.shared_expenses set description='Tentativo modifica' where id=v_expense_id;
+    ok:=false;
+  exception when insufficient_privilege then
+    ok:=true;
+  end;
+  if not ok or (select description from public.shared_expenses where id=v_expense_id)<>'Cambio pagatore' then
     raise exception 'FAIL membro non autorizzato a modificare la spesa'; end if; n:=n+1;
 
   execute 'reset role';
