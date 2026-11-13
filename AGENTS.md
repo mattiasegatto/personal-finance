@@ -11,11 +11,12 @@
 - Transactions are soft-deleted and revisions are retained for auditability.
 - Transfers are represented by an atomic operation with linked source and destination movements; preserve all database invariants and never create transfer legs through ordinary client writes.
 - Shared expenses and settlements are separate domain entities. Settlements are not income and must not be modelled as shared expenses.
-- Shared expenses may link to personal movements; do not duplicate the underlying outflow.
+- Shared expenses and settlements may link only to an ordinary personal outflow with an exactly matching amount. A movement may have at most one active shared link; while linked, its amount and direction cannot change and it cannot be deleted until explicitly unlinked.
 - Categories use one shared classification model with at most two levels. Category kind must agree with movement direction.
 - Recurring items and deadlines belong to personal spaces and must reference active accounts and categories.
 - Archiving must preserve referential integrity, including references from open recurring items and deadlines.
-- Space membership and invitations are controlled by database functions and triggers; client code must never be able to grant itself access.
+- Space membership and invitations are controlled by database functions and triggers; client code must never be able to grant itself access. Membership predicates must only answer questions about the authenticated caller, and invitation identity fields are immutable after creation.
+- Shared expenses, shares and settlements are written only through validated RPC functions; do not grant direct client write access to those tables.
 
 ## Security
 - RLS must remain enabled on all user data tables.
