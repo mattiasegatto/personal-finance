@@ -4,7 +4,7 @@ do $$
 declare
   ua uuid := '00000000-0000-0000-0000-0000000000a1';
   ub uuid := '00000000-0000-0000-0000-0000000000b1';
-  sa uuid; sb uuid; acc uuid; accb uuid; inc uuid; exp uuid; expb uuid; t1 uuid; t2 uuid; v bigint; n int := 0; ok boolean;
+  sa uuid; sb uuid; acc uuid; accb uuid; inc uuid; exp uuid; expb uuid; t1 uuid; t2 uuid; cycle_cat uuid; v bigint; n int := 0; ok boolean;
 begin
   insert into auth.users(id, instance_id, aud, role, email, raw_user_meta_data, created_at, updated_at) values
    (ua,'00000000-0000-0000-0000-000000000000','authenticated','authenticated','fa@test.local','{"display_name":"A"}',now(),now()),
@@ -44,6 +44,17 @@ begin
   select balance_cents into v from public.account_balances where account_id = acc;
   if v <> 350000 then raise exception 'FAIL saldo dopo eliminazione %', v; end if; n := n + 1;
   if (select count(*) from public.transaction_revisions where transaction_id = t2) <> 3 then raise exception 'FAIL storico revisioni'; end if; n := n + 1;
+
+  -- Categoria non può diventare padre di sé stessa.
+  insert into public.categories(space_id, kind, name)
+  values (sa, 'expense', 'Categoria ciclo test') returning id into cycle_cat;
+  begin
+    update public.categories set parent_id = cycle_cat, kind = null where id = cycle_cat;
+    ok := false;
+  exception when others then
+    ok := true;
+  end;
+  if not ok then raise exception 'FAIL categoria autoreferenziale accettata'; end if; n := n + 1;
 
   -- regole
   begin insert into public.transactions(space_id, account_id, category_id, direction, amount_cents, occurred_on) values (sa,acc,inc,'outflow',100,'2026-11-03'); ok := false;
