@@ -92,7 +92,7 @@ select pg_temp.check('C rimosso non vede più i profili di A e B', (select count
 reset role;
 set local role anon;
 select pg_temp.check('anonimo non legge spazi', pg_temp.fails($$select count(*) from public.spaces$$));
-select pg_temp.check('anonimo non crea spazi', pg_temp.fails($select public.create_shared_space('x')$));
+select pg_temp.check('anonimo non crea spazi', pg_temp.fails($q$select public.create_shared_space('x')$q$));
 select pg_temp.check(
   'anonimo non ha TRUNCATE sulle tabelle finanziarie',
   not exists (
