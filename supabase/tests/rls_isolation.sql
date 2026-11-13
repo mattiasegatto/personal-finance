@@ -31,7 +31,7 @@ create temp table _ids as select public.create_shared_space('Casa test') as sid;
 select public.invite_to_space((select sid from _ids), 'b@test.local', 'member');
 select public.invite_to_space((select sid from _ids), 'c@test.local', 'viewer');
 select public.invite_to_space((select sid from _ids), 'z@test.local', 'member');
-select pg_temp.check('owner non modifica i dati identificativi di un invito', pg_temp.fails($update public.space_invitations set email='changed@test.local' where email='z@test.local'$));
+select pg_temp.check('owner non modifica i dati identificativi di un invito', pg_temp.fails($q$update public.space_invitations set email='changed@test.local' where email='z@test.local'$q$));
 update public.space_invitations set status='revoked' where email='z@test.local';
 select pg_temp.check('owner può revocare un invito', (select status='revoked' from public.space_invitations where email='z@test.local'));
 select pg_temp.check('A vede solo personale + condiviso', (select count(*) from public.spaces) = 2);
