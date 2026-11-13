@@ -5,6 +5,7 @@
 create or replace function public.guard_category()
 returns trigger
 language plpgsql
+security definer
 set search_path = public
 as $$
 declare
