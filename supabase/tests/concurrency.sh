@@ -11,6 +11,9 @@ user_id="00000000-0000-0000-0000-00000000e101"
 account_id="00000000-0000-0000-0000-00000000e102"
 transaction_category_id="00000000-0000-0000-0000-00000000e103"
 parent_category_id="00000000-0000-0000-0000-00000000e104"
+recurring_account_id="00000000-0000-0000-0000-00000000e105"
+deadline_category_id="00000000-0000-0000-0000-00000000e106"
+deadline_account_id="00000000-0000-0000-0000-00000000e107"
 space_id="$(
   docker exec "$container" psql --username postgres --dbname postgres --tuples-only --no-align \
     --command "select id from public.spaces where created_by = '$user_id' and kind = 'personal' limit 1"
@@ -44,6 +47,18 @@ on conflict (id) do nothing;
 
 insert into public.categories(id, space_id, kind, name)
 values ('$parent_category_id', '$space_id', 'expense', 'Concurrency parent')
+on conflict (id) do nothing;
+
+insert into public.accounts(id, space_id, name, initial_balance_cents)
+values ('$recurring_account_id', '$space_id', 'Concurrency recurring account', 0)
+on conflict (id) do nothing;
+
+insert into public.accounts(id, space_id, name, initial_balance_cents)
+values ('$deadline_account_id', '$space_id', 'Concurrency deadline account', 0)
+on conflict (id) do nothing;
+
+insert into public.categories(id, space_id, kind, name)
+values ('$deadline_category_id', '$space_id', 'expense', 'Concurrency deadline category')
 on conflict (id) do nothing;
 SQL
 
@@ -105,4 +120,56 @@ if [[ "$write_status" -eq 0 ]] || ! grep -q 'categoria archiviata' "$category_wr
   exit 1
 fi
 
-echo "ALL_PASSED: concurrent transaction/account archival and child-category/parent archival are serialized."
+# A recurring item must not be created against an account being archived.
+docker exec "$container" psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 \
+  --command "begin; update public.accounts set archived_at = now() where id = '$recurring_account_id'; select pg_sleep(2); commit;" \
+  >"$account_archive_log" 2>&1 &
+archive_pid=$!
+sleep 0.25
+
+set +e
+docker exec -i "$container" psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 >"$account_write_log" 2>&1 <<SQL
+begin;
+select set_config('request.jwt.claims', '{"sub":"$user_id","role":"authenticated"}', true);
+set local role authenticated;
+insert into public.recurring_items(space_id, account_id, category_id, direction, amount_cents, description, frequency, start_on, next_due_on)
+values ('$space_id', '$recurring_account_id', '$transaction_category_id', 'outflow', 100, 'Concurrent recurrence', 'monthly', current_date, current_date);
+commit;
+SQL
+write_status=$?
+set -e
+wait "$archive_pid"
+
+if [[ "$write_status" -eq 0 ]] || ! grep -q 'conto attivo' "$account_write_log"; then
+  cat "$account_archive_log" "$account_write_log"
+  echo "Concurrent recurring-item creation was not rejected after account archival."
+  exit 1
+fi
+
+# A deadline must not be created against a category being archived.
+docker exec "$container" psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 \
+  --command "begin; update public.categories set archived_at = now() where id = '$deadline_category_id'; select pg_sleep(2); commit;" \
+  >"$category_archive_log" 2>&1 &
+archive_pid=$!
+sleep 0.25
+
+set +e
+docker exec -i "$container" psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 >"$category_write_log" 2>&1 <<SQL
+begin;
+select set_config('request.jwt.claims', '{"sub":"$user_id","role":"authenticated"}', true);
+set local role authenticated;
+insert into public.deadlines(space_id, account_id, category_id, direction, amount_cents, title, due_on)
+values ('$space_id', '$deadline_account_id', '$deadline_category_id', 'outflow', 100, 'Concurrent deadline', current_date);
+commit;
+SQL
+write_status=$?
+set -e
+wait "$archive_pid"
+
+if [[ "$write_status" -eq 0 ]] || ! grep -q 'Categoria non valida o archiviata' "$category_write_log"; then
+  cat "$category_archive_log" "$category_write_log"
+  echo "Concurrent deadline creation was not rejected after category archival."
+  exit 1
+fi
+
+echo "ALL_PASSED: transaction, recurrence, deadline and child-category creation serialize with archival."
