@@ -28,8 +28,9 @@ Il branch operativo è `migration/standalone-stack`. Il database usa Supabase Po
 
 ## Lavori in corso
 
-- [ ] Confermare il completamento della pipeline database sul commit più recente, che include l'ultima restrizione della revoca degli inviti.
-- [ ] Concludere la revisione finale di trigger, policy RLS, grant, RPC e vincoli cross-space.
+- [x] Pipeline frontend e database completate con esito positivo sul commit applicativo `a832c8c`; tutte le suite SQL, incluse quelle di concorrenza e integrità dei collegamenti, sono verdi.
+- [x] Revisione mirata di trigger, policy RLS, grant, RPC e vincoli cross-space completata; le regressioni individuate sono coperte da test.
+- [ ] Eseguire un'ulteriore revisione indipendente prima della promozione a `main`.
 - [ ] Verificare la configurazione di produzione e definire la gestione dei segreti in base all'hosting scelto.
 
 ## Rilascio
