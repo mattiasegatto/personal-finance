@@ -47,11 +47,13 @@ $$;
 create or replace function public.guard_transaction()
 returns trigger
 language plpgsql
+security definer
 set search_path = public
 as $$
 declare
   a record;
   c record;
+  want public.category_kind;
 begin
   if tg_op = 'UPDATE' then
     if new.space_id <> old.space_id then
@@ -60,8 +62,11 @@ begin
     if old.deleted_at is not null then
       raise exception 'Un movimento eliminato non può essere modificato.';
     end if;
-    if new.created_by <> old.created_by then
+    if new.created_by is distinct from old.created_by then
       raise exception 'Campo non modificabile.';
+    end if;
+    if new.operation_type is distinct from old.operation_type then
+      raise exception 'Il tipo di operazione non è modificabile.';
     end if;
   else
     new.created_by := auth.uid();
@@ -76,32 +81,39 @@ begin
   where id = new.account_id
   for share;
 
-  if a.id is null or a.space_id <> new.space_id then
+  if not found or a.space_id is distinct from new.space_id then
     raise exception 'Il conto appartiene a un altro spazio.';
   end if;
   if a.archived_at is not null and (tg_op = 'INSERT' or new.account_id <> old.account_id) then
     raise exception 'Il conto è archiviato.';
   end if;
 
-  select * into c
-  from public.categories
-  where id = new.category_id
-  for share;
+  if new.operation_type = 'transfer' then
+    if current_setting('app.transfer_rpc', true) is distinct from 'on' then
+      raise exception 'I movimenti di trasferimento possono essere creati o modificati solo tramite la funzione dedicata.';
+    end if;
+    if new.category_id is not null then
+      raise exception 'Un trasferimento non ha categoria.';
+    end if;
+  else
+    if new.category_id is null then
+      raise exception 'La categoria è obbligatoria per un movimento ordinario.';
+    end if;
 
-  if c.id is null or c.space_id <> new.space_id then
-    raise exception 'La categoria appartiene a un altro spazio.';
-  end if;
-  if tg_op = 'INSERT' or new.category_id <> old.category_id then
-    if c.archived_at is not null then
+    select * into c
+    from public.categories
+    where id = new.category_id
+    for share;
+
+    if not found or c.space_id is distinct from new.space_id then
+      raise exception 'La categoria appartiene a un altro spazio.';
+    end if;
+    if (tg_op = 'INSERT' or new.category_id <> old.category_id) and c.archived_at is not null then
       raise exception 'La categoria è archiviata.';
     end if;
-    if public.category_root_kind(new.category_id) <>
-      (case when new.direction = 'inflow' then 'income' else 'expense' end)::public.category_kind then
-      raise exception 'La categoria non corrisponde alla direzione del movimento.';
-    end if;
-  elsif new.direction <> old.direction then
-    if public.category_root_kind(new.category_id) <>
-      (case when new.direction = 'inflow' then 'income' else 'expense' end)::public.category_kind then
+
+    want := (case when new.direction = 'inflow' then 'income' else 'expense' end)::public.category_kind;
+    if public.category_root_kind(new.category_id) is distinct from want then
       raise exception 'La categoria non corrisponde alla direzione del movimento.';
     end if;
   end if;
