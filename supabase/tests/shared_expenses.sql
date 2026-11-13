@@ -37,6 +37,33 @@ begin
     raise exception 'FAIL salvataggio spesa e quote'; end if; n:=n+1;
 
   begin
+    update public.transactions set amount_cents=9999 where id=tx_id;
+    ok:=false;
+  exception when others then
+    ok:=true;
+  end;
+  if not ok or (select amount_cents from public.transactions where id=tx_id)<>10000 then
+    raise exception 'FAIL modifica importo movimento collegato'; end if; n:=n+1;
+
+  begin
+    update public.transactions set deleted_at=now() where id=tx_id;
+    ok:=false;
+  exception when others then
+    ok:=true;
+  end;
+  if not ok or (select deleted_at from public.transactions where id=tx_id) is not null then
+    raise exception 'FAIL eliminazione movimento collegato'; end if; n:=n+1;
+
+  begin
+    perform public.save_shared_settlement(null,sh,current_date,ua,ub,10000,'rimborso','Doppio collegamento',tx_id);
+    ok:=false;
+  exception when others then
+    ok:=true;
+  end;
+  if not ok or exists(select 1 from public.shared_settlements where note='Doppio collegamento') then
+    raise exception 'FAIL movimento collegato contemporaneamente a spesa e rimborso'; end if; n:=n+1;
+
+  begin
     perform public.save_shared_expense(null,sh,current_date,'Importi errati',cat_id,10000,ua,'amount',
       jsonb_build_array(jsonb_build_object('member_user_id',ua,'amount_cents',4000),jsonb_build_object('member_user_id',ub,'amount_cents',5000)),null);
     ok:=false;
