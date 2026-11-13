@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { eur, dateFull } from "@/lib/domain";
-import { centsToInput, errMsg, financeQuery, parseCents } from "@/lib/finance";
+import { centsToInput, errMsg, financeQuery, localDateISO, parseCents } from "@/lib/finance";
 
 export const Route = createFileRoute("/_authenticated/investimenti")({
   head: () => ({
@@ -323,7 +323,7 @@ function InvestmentDialog({
   const [invested, setInvested] = useState(centsToInput(item?.invested_amount_cents ?? 0));
   const [current, setCurrent] = useState(centsToInput(item?.current_value_cents ?? 0));
   const [valuation, setValuation] = useState(
-    item?.valuation_date ?? new Date().toISOString().slice(0, 10),
+    item?.valuation_date ?? localDateISO(),
   );
   const [notes, setNotes] = useState(item?.notes ?? "");
   const [busy, setBusy] = useState(false);
