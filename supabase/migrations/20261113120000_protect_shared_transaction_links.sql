@@ -191,4 +191,6 @@ create trigger a_shared_transaction_links_guard
 before update on public.transactions
 for each row execute function public.guard_transaction_shared_links();
 
+revoke execute on function public.guard_shared_expense() from public, anon, authenticated;
+revoke execute on function public.guard_shared_settlement() from public, anon, authenticated;
 revoke execute on function public.guard_transaction_shared_links() from public, anon, authenticated;
