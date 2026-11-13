@@ -3,6 +3,10 @@ begin;
 do $$
 declare u uuid := gen_random_uuid(); v uuid := gen_random_uuid(); s uuid; a uuid; c uuid; subc uuid; r uuid; tx uuid; d date := current_date;
 begin
+  if position('for share' in lower(pg_get_functiondef('public.guard_recurring_item()'::regprocedure))) = 0
+     or position('for share' in lower(pg_get_functiondef('public.guard_active_category_ancestry()'::regprocedure))) = 0 then
+    raise exception 'I trigger delle ricorrenze devono bloccare in condivisione conto, categoria e categoria padre.';
+  end if;
   insert into auth.users(id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
   values (u,'authenticated','authenticated',u::text||'@example.test','',now(),'{}','{}',now(),now());
   perform set_config('request.jwt.claim.sub',u::text,true);
