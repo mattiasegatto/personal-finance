@@ -502,7 +502,7 @@ function TransferDialog({
       eligibleAccounts.find((a) => a.id !== (eligibleAccounts[0]?.id ?? ""))?.id ??
       "",
   );
-  const [date, setDate] = useState(transfer?.occurred_on ?? new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(transfer?.occurred_on ?? localDateISO());
   const [amount, setAmount] = useState(transfer ? centsToInput(transfer.amount_cents) : "");
   const [desc, setDesc] = useState(transfer?.description ?? "");
   const [busy, setBusy] = useState(false);
