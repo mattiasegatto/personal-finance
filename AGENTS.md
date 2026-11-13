@@ -1,24 +1,40 @@
-<!-- LOVABLE:BEGIN -->
-> [!IMPORTANT]
-> This project is connected to [Lovable](https://lovable.dev). Avoid rewriting
-> published git history — force pushing, or rebasing/amending/squashing commits
-> that are already pushed — as it rewrites history on Lovable's side and the
-> user will likely lose their project history.
->
-> Commits you push to the connected branch sync back to Lovable and show up in
-> the editor, so keep the branch in a working state.
-<!-- LOVABLE:END -->
+# Project engineering guidelines
 
-## Architecture rules
-- Domain types live in `src/lib/domain.ts`; every record belongs to a Space (personal or shared) and access goes through SpaceMembership — why: shared members must never see each other's private data.
-- Shared expenses reference personal bank transactions via `linkedTransactionId` instead of copying them — why: avoid duplicated outflows.
-- Settlements are their own entity, never income or shared expenses — why: reimbursements only move debt between members.
-- Splits are a per-member `shares` list — why: future N participants and variable quotas.
-- Backend phases: auth/spaces (phase 1) and personal accounts, categories and transactions (phase 2, `src/lib/finance.ts`) live in Lovable Cloud; dashboard and shared expenses still use demo data from `src/lib/mock-data.ts` until the user approves the next phase — why: phased rollout with explicit approval.
-- Money is stored as positive integer cents with a separate `direction`; account balance is never stored, it is derived (`account_balances` view = initial balance + inflows − outflows of non-deleted transactions); transactions are soft-deleted and every change is logged in `transaction_revisions` — why: balances must always match movements and history must survive.
-- Cross-record integrity (same space for account/category/transaction, category kind matches direction, two-level categories, no delete of accounts with movements, archive only at zero balance) is enforced by SECURITY DEFINER triggers, so checks see rows hidden by RLS — why: invoker triggers missed cross-space references.
-- Space access is enforced in the database (RLS via security-definer helpers `is_space_member`/`has_space_role`); spaces and memberships are created only through RPCs (`create_shared_space`, `invite_to_space`, `accept_invitation`) and a signup trigger creates the personal space — why: client code must never be able to grant itself access.
-- Personal spaces have exactly one owner member and cannot be archived; shared spaces always keep at least one owner (DB triggers) — why: strict personal/shared separation.
-- Authorization tests live in `supabase/tests/rls_isolation.sql` and `supabase/tests/finance_isolation.sql` and run in a rolled-back transaction — why: verify isolation without leaving data.
-- Signed-in pages live under `src/routes/_authenticated/` (client-only gate, sidebar layout); `/auth` and `/reset-password` are public — why: session is in browser storage.
-- SplitDialog is mounted only while editing and preserves original shares until an explicit change; its named export supports calculation regression tests — why: cancel must discard drafts and unchanged saves must not round monetary shares.
+## Architecture
+- Frontend and server: React, TanStack Start, TanStack Router and Vite.
+- Authentication and database: Supabase Auth and PostgreSQL.
+- Database schema changes are managed exclusively through versioned SQL migrations in `supabase/migrations/`.
+- Database integrity and authorization rules belong in PostgreSQL constraints, triggers, RLS policies and narrowly scoped RPC functions; do not rely on client-side checks for security.
+- Domain types live in `src/lib/domain.ts`; financial types and helpers live in `src/lib/finance.ts`.
+- Every record belongs to a Space (personal or shared); access must be scoped through space membership and database-enforced authorization.
+- Money is stored as positive integer cents with a separate direction. Account balances are derived from non-deleted movements and must not be stored as independently mutable values.
+- Transactions are soft-deleted and revisions are retained for auditability.
+- Transfers are represented by an atomic operation with linked source and destination movements; preserve all database invariants and never create transfer legs through ordinary client writes.
+- Shared expenses and settlements are separate domain entities. Settlements are not income and must not be modelled as shared expenses.
+- Shared expenses may link to personal movements; do not duplicate the underlying outflow.
+- Categories use one shared classification model with at most two levels. Category kind must agree with movement direction.
+- Recurring items and deadlines belong to personal spaces and must reference active accounts and categories.
+- Archiving must preserve referential integrity, including references from open recurring items and deadlines.
+- Space membership and invitations are controlled by database functions and triggers; client code must never be able to grant itself access.
+
+## Security
+- RLS must remain enabled on all user data tables.
+- Use server-side credentials only in server code. Never expose a Supabase service-role or secret key to browser code or commit real credentials.
+- Keep internal trigger functions inaccessible to client roles; grant RPC execution only to the roles that require it.
+- Do not weaken policies, triggers, constraints or grants merely to make a test pass.
+- Never apply migrations to a remote database as part of routine development or CI. Remote changes require review, local rebuild, passing tests and explicit approval.
+
+## Validation
+- Install dependencies with `bun install --frozen-lockfile`.
+- Run `bun run lint`, `bun run test` and `bun run build` for frontend changes.
+- Rebuild the local database from migrations with `supabase db reset`.
+- Run the SQL integrity and isolation suites in `supabase/tests/` for database changes.
+- Add regression tests for every corrected defect, including cross-space and concurrency cases where relevant.
+- Treat `supabase/migrations/` as the sole authoritative migration history. Do not reintroduce a second migration system.
+- Do not edit generated files such as `src/routeTree.gen.ts` by hand.
+
+## Product behaviour
+- Financial data is entered and updated manually; do not add bank synchronization without explicit product approval.
+- Preserve the separation between personal and shared spaces.
+- Preserve the agreed settlement model: balances accumulate and are settled periodically.
+- Keep changes focused, backward-compatible where possible, and documented when they alter domain behaviour.

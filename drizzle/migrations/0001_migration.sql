@@ -1,3 +1,0 @@
-revoke all on public.profiles, public.spaces, public.space_memberships, public.space_invitations from public, anon;
-revoke all on function public.is_space_member(uuid,uuid), public.has_space_role(uuid,uuid,public.space_role[]), public.shares_shared_space(uuid,uuid) from public, anon;
-grant execute on function public.is_space_member(uuid,uuid), public.has_space_role(uuid,uuid,public.space_role[]), public.shares_shared_space(uuid,uuid) to authenticated;
