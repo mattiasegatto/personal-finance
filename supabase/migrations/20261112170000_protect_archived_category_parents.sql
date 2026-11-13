@@ -40,16 +40,14 @@ declare
   parent_archived boolean;
 begin
   if tg_op = 'UPDATE' then
-    if tg_table_name = 'transactions' and new.category_id = old.category_id then
-      return new;
-    end if;
-    if tg_table_name = 'recurring_items'
-       and new.category_id = old.category_id
-       and not (not old.active and new.active) then
-      return new;
-    end if;
-    if tg_table_name = 'deadlines' and new.category_id = old.category_id then
-      return new;
+    if tg_table_name = 'transactions' then
+      if new.category_id = old.category_id then return new; end if;
+    elsif tg_table_name = 'recurring_items' then
+      if new.category_id = old.category_id and (old.active or not new.active) then
+        return new;
+      end if;
+    elsif tg_table_name = 'deadlines' then
+      if new.category_id = old.category_id then return new; end if;
     end if;
   end if;
 
