@@ -22,6 +22,10 @@ begin
     end if;
   end if;
 
+  if new.parent_id = new.id then
+    raise exception 'Una categoria non può essere padre di sé stessa.';
+  end if;
+
   if new.parent_id is not null then
     select * into p
     from public.categories
