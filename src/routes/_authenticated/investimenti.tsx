@@ -322,9 +322,7 @@ function InvestmentDialog({
   const [quantity, setQuantity] = useState(item?.quantity?.toString() ?? "");
   const [invested, setInvested] = useState(centsToInput(item?.invested_amount_cents ?? 0));
   const [current, setCurrent] = useState(centsToInput(item?.current_value_cents ?? 0));
-  const [valuation, setValuation] = useState(
-    item?.valuation_date ?? localDateISO(),
-  );
+  const [valuation, setValuation] = useState(item?.valuation_date ?? localDateISO());
   const [notes, setNotes] = useState(item?.notes ?? "");
   const [busy, setBusy] = useState(false);
   const submit = async (e: FormEvent) => {
