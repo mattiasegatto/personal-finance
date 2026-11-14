@@ -47,3 +47,6 @@ jobs:
 
       - name: Build production application
         run: bun run build
+
+      - name: Validate Cloudflare Worker bundle without deploying
+        run: bunx wrangler deploy --dry-run --outdir "$RUNNER_TEMP/personal-finance-worker"
