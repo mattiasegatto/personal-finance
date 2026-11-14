@@ -120,10 +120,12 @@ Procedura prevista:
 
 1. Creare un nuovo progetto Supabase nella stessa regione UE e con una versione PostgreSQL compatibile.
 2. Recuperare il backup da R2 e decifrarlo con la chiave privata age conservata offline.
-3. Applicare le migrazioni versionate nel backup al nuovo progetto con Supabase CLI.
-4. Importare prima `auth-users.sql` e poi `data.sql`, in un'unica transazione, disabilitando temporaneamente i trigger durante l'importazione come previsto dalla procedura ufficiale Supabase.
-5. Verificare accesso degli utenti, profili, spazi, conti, movimenti, saldi, trasferimenti e spese condivise.
-6. Ruotare i segreti e aggiornare le variabili del Worker prima di riaprire l'applicazione.
+3. Se `roles.sql` contiene ruoli personalizzati, importarli nel nuovo progetto prima delle migrazioni. Al momento il progetto non definisce ruoli PostgreSQL personalizzati.
+4. Applicare le migrazioni versionate nel backup al nuovo progetto con `supabase link` e `supabase db push`.
+5. Importare prima `auth-users.sql` e poi `data.sql` con `bash scripts/restore-database-backup.sh <directory-backup>`. Lo script usa una transazione e disabilita temporaneamente i trigger durante l'importazione, così da non duplicare profili e spazi personali.
+6. Verificare accesso degli utenti, profili, spazi, conti, movimenti, saldi, trasferimenti e spese condivise.
+7. Ruotare i segreti e aggiornare le variabili del Worker prima di riaprire l'applicazione.
+
 
 Non eseguire un ripristino sul database attivo senza una copia preventiva e una verifica della destinazione.
 
