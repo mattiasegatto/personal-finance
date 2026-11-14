@@ -23,6 +23,7 @@ Valori in USD, prima di IVA, cambio e dominio. Verificare i prezzi prima di atti
 | Supabase | Free | $0/mese |
 | Cloudflare R2 | Free, entro le quote | $0/mese |
 | Cloudflare Access | Free, fino a 50 utenti | $0/mese |
+| Email Auth | Brevo Free, fino a 300 email/giorno | $0/mese |
 | GitHub Actions | Quote incluse nel piano GitHub | $0 aggiuntivi previsti |
 | Dominio personalizzato | Da acquistare solo se necessario | Variabile |
 
@@ -51,6 +52,31 @@ Fonti ufficiali:
 Per i riferimenti:
 - https://developers.cloudflare.com/r2/reference/data-location/
 - https://developers.cloudflare.com/workers/framework-guides/web-apps/tanstack-start/
+
+## Email di autenticazione
+
+L'app usa registrazione email/password, conferma dell'indirizzo e recupero password. In produzione è quindi necessario configurare SMTP personalizzato in Supabase Auth.
+
+Il server SMTP predefinito di Supabase è soltanto per test: invia solo agli indirizzi del team dell'organizzazione e attualmente è limitato a 2 email/ora. Non è adatto agli inviti e agli utenti reali.
+
+Per mantenere i costi a zero propongo **Brevo Free**:
+- include email transazionali;
+- consente fino a 300 invii al giorno nel piano gratuito;
+- supporta SMTP e viene indicato da Supabase tra i provider compatibili.
+
+Configurazione prevista:
+1. Creare un account Brevo.
+2. Verificare il dominio mittente e pubblicare i record DNS SPF/DKIM richiesti.
+3. Generare le credenziali SMTP.
+4. Inserire host, porta, utente, password e indirizzo mittente in Supabase Dashboard → Authentication → SMTP Settings.
+5. Testare registrazione, conferma email, recupero password e inviti con gli indirizzi effettivi.
+
+Il costo previsto è $0/mese entro il limite gratuito. Se il dominio non è già disponibile, resta da aggiungere il suo costo annuale.
+
+Fonti:
+- https://supabase.com/docs/guides/auth/auth-smtp
+- https://help.brevo.com/hc/en-us/articles/208580669-FAQs-What-are-the-limits-of-the-Free-plan
+- https://help.brevo.com/hc/en-us/articles/208589409-About-Brevo-s-pricing-plans
 
 ## Protezione dell'accesso
 
@@ -141,6 +167,7 @@ Riferimenti:
 - [ ] Creare gli account e il progetto Supabase di produzione.
 - [ ] Creare il bucket R2 in giurisdizione UE e configurare lifecycle.
 - [ ] Generare e conservare offline la chiave privata age.
+- [ ] Configurare SMTP Brevo e testare tutti i flussi email.
 - [ ] Configurare i segreti e le variabili GitHub/Cloudflare.
 - [ ] Eseguire il primo backup reale e verificarne la decifratura.
 - [ ] Eseguire un ripristino completo su un progetto di prova.
