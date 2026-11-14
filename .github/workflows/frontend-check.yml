@@ -40,6 +40,9 @@ jobs:
       - name: Check source formatting
         run: bunx prettier --check "src/**/*.{ts,tsx}" "*.ts" "*.js"
 
+      - name: Check operations scripts syntax
+        run: bash -n scripts/create-database-backup.sh scripts/restore-database-backup.sh
+
       - name: Run ESLint
         run: bun run lint
 
