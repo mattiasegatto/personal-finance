@@ -3,7 +3,7 @@
 ## Architecture
 - Frontend and server: React, TanStack Start, TanStack Router and Vite.
 - Authentication and database: Supabase Auth and PostgreSQL.
-- The web runtime is Cloudflare Workers using the official Cloudflare Vite plugin for TanStack Start; deployment configuration lives in `wrangler.jsonc`.
+- The web runtime is Cloudflare Workers using the official Cloudflare Vite plugin for TanStack Start; deployment configuration lives in `wrangler.jsonc` and its `main` must remain `src/server.ts` to preserve the custom SSR error-handling wrapper.
 - Database schema changes are managed exclusively through versioned SQL migrations in `supabase/migrations/`.
 - Database integrity and authorization rules belong in PostgreSQL constraints, triggers, RLS policies and narrowly scoped RPC functions; do not rely on client-side checks for security.
 - Domain types live in `src/lib/domain.ts`; financial types and helpers live in `src/lib/finance.ts`.
