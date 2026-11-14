@@ -140,10 +140,10 @@ Variables:
 
 Generazione della coppia di chiavi su un computer affidabile:
 
-\`\`\`sh
+```sh
 age-keygen -o personal-finance-backup-key.txt
 age-keygen -y personal-finance-backup-key.txt
-\`\`\`
+```
 
 Il secondo comando stampa il destinatario pubblico da inserire nella variabile GitHub `AGE_RECIPIENT`. La chiave privata nel file `personal-finance-backup-key.txt` deve essere conservata offline o in un password manager. Non va caricata su GitHub, Cloudflare o nel repository. Senza la chiave privata il backup cifrato non è recuperabile.
 
