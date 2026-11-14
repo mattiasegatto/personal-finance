@@ -11,6 +11,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: supabase-db-verification-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   database:
     name: Rebuild database and verify RLS
