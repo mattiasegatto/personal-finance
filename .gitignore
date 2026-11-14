@@ -35,3 +35,8 @@ dist-ssr
 .env
 .env.*
 !.env.example
+
+# Cloudflare Workers local state and secrets
+.wrangler/
+.cloudflare/
+.dev.vars*
