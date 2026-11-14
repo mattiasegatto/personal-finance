@@ -93,6 +93,8 @@ Cloudflare Access Free è indicato per meno di 50 utenti. La protezione con Acce
 
 ## Variabili e segreti
 
+Per ridurre i privilegi, usare token Cloudflare distinti per deploy del Worker e scrittura dei backup R2. Non riutilizzare lo stesso token per entrambe le operazioni.
+
 ### Variabili pubbliche di build
 
 - `VITE_SUPABASE_URL`
@@ -128,14 +130,22 @@ La CLI Supabase esclude intenzionalmente gli schemi gestiti `auth` e `storage` d
 
 Secrets:
 - `SUPABASE_DB_URL`: connection string PostgreSQL del Session Pooler Supabase, con password e SSL.
-- `CLOUDFLARE_API_TOKEN`: token Cloudflare limitato alla lettura/scrittura degli oggetti del solo bucket di backup.
+- `CLOUDFLARE_R2_API_TOKEN`: token Cloudflare limitato alla lettura/scrittura degli oggetti del solo bucket di backup.
+- `CLOUDFLARE_DEPLOY_API_TOKEN`: token separato per il deploy del Worker, con i soli permessi necessari a Workers Scripts e lettura delle impostazioni account/zona.
 
 Variables:
 - `CLOUDFLARE_ACCOUNT_ID`
 - `R2_BUCKET_NAME`
 - `AGE_RECIPIENT`: chiave pubblica age.
 
-La chiave privata age deve essere conservata offline o in un password manager. Non va caricata su GitHub, Cloudflare o nel repository. Senza la chiave privata il backup cifrato non è recuperabile.
+Generazione della coppia di chiavi su un computer affidabile:
+
+\`\`\`sh
+age-keygen -o personal-finance-backup-key.txt
+age-keygen -y personal-finance-backup-key.txt
+\`\`\`
+
+Il secondo comando stampa il destinatario pubblico da inserire nella variabile GitHub `AGE_RECIPIENT`. La chiave privata nel file `personal-finance-backup-key.txt` deve essere conservata offline o in un password manager. Non va caricata su GitHub, Cloudflare o nel repository. Senza la chiave privata il backup cifrato non è recuperabile.
 
 Dopo aver creato il bucket, configurare una regola di lifecycle per eliminare gli oggetti sotto `backups/daily/` dopo 35 giorni. Prima di abilitare una schedulazione quotidiana, eseguire almeno un backup manuale e verificarne il download e la decifratura.
 
@@ -146,10 +156,10 @@ Il ripristino non è considerato verificato finché non viene provato su un prog
 Procedura prevista:
 
 1. Creare un nuovo progetto Supabase nella stessa regione UE e con una versione PostgreSQL compatibile.
-2. Recuperare il backup da R2 e decifrarlo con la chiave privata age conservata offline.
+2. Recuperare il backup da R2 e decifrarlo con la chiave privata age conservata offline, quindi estrarre l'archivio. Il file cifrato non va mai allegato a ticket o condiviso pubblicamente.
 3. Se `roles.sql` contiene ruoli personalizzati, importarli nel nuovo progetto prima delle migrazioni. Al momento il progetto non definisce ruoli PostgreSQL personalizzati.
 4. Applicare le migrazioni versionate nel backup al nuovo progetto con `supabase link` e `supabase db push`.
-5. Importare prima `auth-users.sql` e poi `data.sql` con `bash scripts/restore-database-backup.sh <directory-backup>`. Lo script usa una transazione e disabilita temporaneamente i trigger durante l'importazione, così da non duplicare profili e spazi personali.
+5. Impostare `NEW_DB_URL` con la connection string del nuovo progetto e importare prima `auth-users.sql` e poi `data.sql` con `bash scripts/restore-database-backup.sh <directory-backup>`. Lo script usa una transazione e disabilita temporaneamente i trigger durante l'importazione, così da non duplicare profili e spazi personali.
 6. Verificare accesso degli utenti, profili, spazi, conti, movimenti, saldi, trasferimenti e spese condivise.
 7. Ruotare i segreti e aggiornare le variabili del Worker prima di riaprire l'applicazione.
 
