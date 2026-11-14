@@ -42,5 +42,13 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add bun.lock
           git commit -m "Regenerate Bun lockfile after dependency changes"
-          git pull --rebase origin migration/standalone-stack
-          git push origin migration/standalone-stack
+          for attempt in 1 2 3 4 5; do
+            git fetch origin migration/standalone-stack
+            git rebase origin/migration/standalone-stack
+            if git push origin HEAD:migration/standalone-stack; then
+              exit 0
+            fi
+            sleep "$attempt"
+          done
+          echo "Could not push the regenerated lockfile after five attempts."
+          exit 1
