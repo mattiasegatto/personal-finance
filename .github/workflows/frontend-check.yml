@@ -1,6 +1,7 @@
 name: Frontend verification
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - migration/standalone-stack
