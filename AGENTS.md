@@ -3,6 +3,7 @@
 ## Architecture
 - Frontend and server: React, TanStack Start, TanStack Router and Vite.
 - Authentication and database: Supabase Auth and PostgreSQL.
+- The web runtime is Cloudflare Workers using the official Cloudflare Vite plugin for TanStack Start; deployment configuration lives in `wrangler.jsonc`.
 - Database schema changes are managed exclusively through versioned SQL migrations in `supabase/migrations/`.
 - Database integrity and authorization rules belong in PostgreSQL constraints, triggers, RLS policies and narrowly scoped RPC functions; do not rely on client-side checks for security.
 - Domain types live in `src/lib/domain.ts`; financial types and helpers live in `src/lib/finance.ts`.
@@ -21,6 +22,7 @@
 ## Security
 - RLS must remain enabled on all user data tables.
 - Use server-side credentials only in server code. Never expose a Supabase service-role or secret key to browser code or commit real credentials.
+- On Workers, environment bindings are exposed through `process.env` by the configured Node.js compatibility runtime. Read secrets inside request handlers/middleware, not at module initialization; never put secrets in `wrangler.jsonc` or `VITE_` variables.
 - Keep internal trigger functions inaccessible to client roles; grant RPC execution only to the roles that require it.
 - Do not weaken policies, triggers, constraints or grants merely to make a test pass.
 - Never apply migrations to a remote database as part of routine development or CI. Remote changes require review, local rebuild, passing tests and explicit approval.
@@ -28,6 +30,7 @@
 ## Validation
 - Install dependencies with `bun install --frozen-lockfile`.
 - Run `bun run lint`, `bun run test` and `bun run build` for frontend changes.
+- Validate Worker compatibility with `bunx wrangler deploy --dry-run` after a production build; do not run a real deploy without explicit release approval.
 - Rebuild the local database from migrations with `supabase db reset`.
 - Run the SQL integrity and isolation suites in `supabase/tests/` for database changes.
 - Add regression tests for every corrected defect, including cross-space and concurrency cases where relevant.
