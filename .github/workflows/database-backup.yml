@@ -32,9 +32,9 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Set up Supabase CLI
-        uses: supabase/setup-cli@v1
+        uses: supabase/setup-cli@v3
         with:
-          version: latest
+          version: 3.1.0
 
       - name: Install age
         run: |
