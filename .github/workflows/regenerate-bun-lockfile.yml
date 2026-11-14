@@ -41,5 +41,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add bun.lock
-          git commit -m "Regenerate Bun lockfile after dependency cleanup"
+          git commit -m "Regenerate Bun lockfile after dependency changes"
+          git pull --rebase origin migration/standalone-stack
           git push origin migration/standalone-stack
