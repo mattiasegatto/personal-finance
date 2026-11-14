@@ -26,7 +26,7 @@ Valori in USD, prima di IVA, cambio e dominio. Verificare i prezzi prima di atti
 | Cloudflare Access | Free, fino a 50 utenti | $0/mese |
 | Email Auth | Brevo Free, fino a 300 email/giorno | $0/mese |
 | GitHub Actions | Quote incluse nel piano GitHub | $0 aggiuntivi previsti |
-| Dominio personalizzato | Da acquistare solo se necessario | Variabile |
+| Dominio personalizzato | Facoltativo: il Worker può usare `workers.dev` | Variabile |
 
 Il piano Workers Paid include 10 milioni di richieste e 30 milioni di millisecondi CPU al mese; il consumo oltre le quote è tariffato a parte. Il piano Free ha un limite di 10 ms CPU per invocazione: per un'applicazione SSR è prudente non basare il rilascio su quel limite.
 
@@ -83,13 +83,13 @@ Fonti:
 
 L'applicazione mantiene Supabase Auth e le autorizzazioni RLS già implementate. Per limitare ulteriormente l'accesso all'interfaccia a persone scelte:
 
-1. Collegare un dominio al Worker.
-2. Attivare Cloudflare Access per l'hostname dell'applicazione.
-3. Abilitare One-time PIN come metodo di autenticazione.
+1. Dopo il primo deploy, aprire Workers & Pages → personal-finance → Access.
+2. Attivare Access per il Worker scegliendo All traffic: questa protezione comprende anche l'hostname `workers.dev` e gli eventuali domini personalizzati.
+3. Usare One-time PIN oppure un identity provider supportato.
 4. Creare una policy Allow con le sole email autorizzate; non usare una regola che consenta genericamente qualsiasi indirizzo.
 5. Mantenere anche l'autenticazione Supabase dell'applicazione: Access è un ulteriore cancello, non sostituisce utenti, spazi e permessi applicativi.
 
-Cloudflare Access Free è indicato per meno di 50 utenti. La protezione con Access richiede un hostname/dominio configurato; il costo del dominio, se non già disponibile, è separato.
+Cloudflare Access Free è indicato per meno di 50 utenti. Non è necessario acquistare un dominio per iniziare: Cloudflare Access può proteggere direttamente il Worker e il suo hostname `workers.dev`. Un dominio personalizzato resta facoltativo e comporta un costo annuale separato.
 
 ## Variabili e segreti
 
