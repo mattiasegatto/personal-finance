@@ -127,7 +127,7 @@ Variables:
 
 Secrets:
 - `SUPABASE_DB_URL`: connection string del Session Pooler, con password URL-encoded e SSL.
-- `CLOUDFLARE_R2_API_TOKEN`: permesso R2 Object Read & Write limitato al bucket dei backup.
+- `CLOUDFLARE_R2_API_TOKEN`: token API con permesso account `Workers R2 Storage: Edit`, separato dal token di deploy. Usare un account Cloudflare dedicato al progetto e non riutilizzare questo token altrove.
 
 Variables:
 - `CLOUDFLARE_ACCOUNT_ID`
@@ -158,7 +158,7 @@ age-keygen -y personal-finance-backup-key.txt
 
 Il secondo comando stampa il destinatario pubblico da inserire nella variabile GitHub `AGE_RECIPIENT`. La chiave privata nel file `personal-finance-backup-key.txt` deve essere conservata offline o in un password manager. Non va caricata su GitHub, Cloudflare o nel repository. Senza la chiave privata il backup cifrato non è recuperabile.
 
-Dopo aver creato il bucket, configurare una regola di lifecycle per eliminare gli oggetti sotto `backups/daily/` dopo 35 giorni. Prima di abilitare una schedulazione quotidiana, eseguire almeno un backup manuale e verificarne il download e la decifratura.
+Creare il bucket in giurisdizione UE, ad esempio con `bunx wrangler r2 bucket create personal-finance-backups --jurisdiction eu`. La giurisdizione è immutabile dopo la creazione: verificare attentamente prima di confermare. Configurare poi la retention con `bunx wrangler r2 bucket lifecycle add personal-finance-backups expire-daily-backups backups/daily/ --expire-days 35 --jurisdiction eu --force`. Prima di abilitare una schedulazione quotidiana, eseguire almeno un backup manuale e verificarne il download e la decifratura.
 
 ## Ripristino
 
@@ -172,7 +172,7 @@ Procedura prevista:
 4. Applicare le migrazioni versionate nel backup al nuovo progetto con `supabase link` e `supabase db push`.
 5. Impostare `NEW_DB_URL` con la connection string del nuovo progetto e importare prima `auth-users.sql` e poi `data.sql` con `bash scripts/restore-database-backup.sh <directory-backup>`. Lo script usa una transazione e disabilita temporaneamente i trigger durante l'importazione, così da non duplicare profili e spazi personali.
 6. Verificare accesso degli utenti, profili, spazi, conti, movimenti, saldi, trasferimenti e spese condivise.
-7. Ruotare i segreti e aggiornare le variabili del Worker prima di riaprire l'applicazione.
+7. Reimpostare SMTP Brevo, eventuali credenziali OAuth, segreti del Worker e policy Cloudflare Access; ruotare i token di deploy e backup prima di riaprire l'applicazione.
 
 
 Non eseguire un ripristino sul database attivo senza una copia preventiva e una verifica della destinazione.
