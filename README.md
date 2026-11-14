@@ -46,6 +46,27 @@ Prerequisiti: Bun, Docker e Supabase CLI.
    bun run dev
    ```
 
+## Hosting
+
+L'applicazione è predisposta per Cloudflare Workers tramite il plugin Vite ufficiale per TanStack Start. La configurazione si trova in `wrangler.jsonc`.
+
+Per verificare localmente il bundle Cloudflare senza pubblicarlo:
+
+```sh
+bun run build
+bunx wrangler deploy --dry-run
+```
+
+Per pubblicare manualmente, dopo aver configurato account, token e segreti:
+
+```sh
+bun run deploy
+```
+
+Il deploy non viene eseguito automaticamente. Il workflow manuale `.github/workflows/cloudflare-deploy.yml` è predisposto ma richiede le variabili GitHub e i segreti del Worker.
+
+Le istruzioni per hosting, costi, Access, backup cifrati e ripristino sono in [Hosting e backup](docs/operations/hosting-and-backups.md).
+
 ## Comandi utili
 
 ```sh
