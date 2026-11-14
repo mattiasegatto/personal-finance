@@ -104,12 +104,35 @@ Servono al bundle browser. La publishable key è pubblica per definizione e la s
 
 ### Segreti del Worker
 
+Configurare questi valori come Worker secrets/variables nella dashboard Cloudflare, non nel repository:
+
 - `SUPABASE_URL`
 - `SUPABASE_PUBLISHABLE_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`, solo se necessaria alle operazioni amministrative server-side
 - `CRON_SECRET`, se vengono attivate route pianificate protette
 
 La service role key non deve mai essere inserita nel bundle browser, in `wrangler.jsonc`, in Git o in una variabile pubblica.
+
+### GitHub Actions: deploy
+
+Secret:
+- `CLOUDFLARE_DEPLOY_API_TOKEN`: permessi Workers Scripts Edit e Account Settings Read; aggiungere Zone Read solo se necessario per la configurazione del dominio.
+
+Variables:
+- `CLOUDFLARE_ACCOUNT_ID`
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_PUBLISHABLE_KEY`
+
+### GitHub Actions: backup
+
+Secrets:
+- `SUPABASE_DB_URL`: connection string del Session Pooler, con password URL-encoded e SSL.
+- `CLOUDFLARE_R2_API_TOKEN`: permesso R2 Object Read & Write limitato al bucket dei backup.
+
+Variables:
+- `CLOUDFLARE_ACCOUNT_ID`
+- `R2_BUCKET_NAME`
+- `AGE_RECIPIENT`
 
 ## Backup automatico
 
@@ -125,18 +148,6 @@ Il backup comprende:
 Le sessioni di autenticazione non vengono esportate: dopo un ripristino gli utenti dovranno effettuare nuovamente l'accesso. Non vengono inclusi file caricati via Storage API; al momento l'applicazione non dipende da file utente per i dati finanziari.
 
 La CLI Supabase esclude intenzionalmente gli schemi gestiti `auth` e `storage` dal proprio dump. Per questo il workflow esporta separatamente utenti e identità con `pg_dump`. Il client PostgreSQL usato per questo passaggio deve essere compatibile con la versione major del database Supabase; il workflow è attualmente impostato su PostgreSQL 17 e andrà adeguato se il progetto viene creato con una major differente.
-
-### Segreti e variabili GitHub necessari
-
-Secrets:
-- `SUPABASE_DB_URL`: connection string PostgreSQL del Session Pooler Supabase, con password e SSL.
-- `CLOUDFLARE_R2_API_TOKEN`: token Cloudflare limitato alla lettura/scrittura degli oggetti del solo bucket di backup.
-- `CLOUDFLARE_DEPLOY_API_TOKEN`: token separato per il deploy del Worker, con i soli permessi necessari a Workers Scripts e lettura delle impostazioni account/zona.
-
-Variables:
-- `CLOUDFLARE_ACCOUNT_ID`
-- `R2_BUCKET_NAME`
-- `AGE_RECIPIENT`: chiave pubblica age.
 
 Generazione della coppia di chiavi su un computer affidabile:
 
