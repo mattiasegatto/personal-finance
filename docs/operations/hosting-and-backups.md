@@ -72,7 +72,7 @@ Configurazione prevista:
 4. Inserire host, porta, utente, password e indirizzo mittente in Supabase Dashboard → Authentication → SMTP Settings.
 5. Testare registrazione, conferma email, recupero password e inviti con gli indirizzi effettivi.
 
-Il costo previsto è $0/mese entro il limite gratuito. Se il dominio non è già disponibile, resta da aggiungere il suo costo annuale.
+Il costo previsto è $0/mese entro il limite gratuito. Brevo richiede la verifica di un dominio mittente con record SPF/DKIM: possiamo usare un dominio già posseduto o un sottodominio dedicato. Questo è distinto dal dominio dell'app, che non serve se usiamo `workers.dev`. Se non hai un dominio mittente, prima di acquistarne uno possiamo valutare un SMTP personale già disponibile, verificando limiti e affidabilità.
 
 Fonti:
 - https://supabase.com/docs/guides/auth/auth-smtp
