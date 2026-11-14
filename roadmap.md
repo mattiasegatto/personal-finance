@@ -31,9 +31,14 @@ Il branch operativo è `migration/standalone-stack`. Il database usa Supabase Po
 - [x] CLI Supabase fissata a una versione stabile nei workflow CI.
 - [x] Pipeline frontend resa read-only e ampliata con controlli di compatibilità Worker e sintassi degli script operativi.
 
+## Validazione tecnica
+
+- [x] Frontend CI verde con Supabase CLI 3.1.0, Bun frozen install, formattazione, sintassi script backup/restore, ESLint, Vitest, build produzione e dry-run Cloudflare Worker.
+- [x] Database CI verde con Supabase CLI 3.1.0: ricostruzione completa, isolamento spazi/membership, finanza personale, trasferimenti, spese condivise, scadenze, ricorrenze, investimenti/debiti e test di concorrenza.
+- [x] La verifica è stata eseguita senza collegarsi a un database remoto e senza effettuare deploy.
+
 ## Lavori in corso
 
-- [ ] Completare la verifica database CI con Supabase CLI 3.1.0 sul branch aggiornato.
 - [ ] Eseguire una revisione indipendente finale di trigger, policy RLS, grant, RPC e vincoli cross-space.
 - [ ] Verificare il ripristino end-to-end su un progetto Supabase separato.
 
