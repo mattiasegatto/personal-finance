@@ -9,6 +9,7 @@ Per mantenere la spesa ricorrente bassa senza gestire un server PostgreSQL auton
 - **Backup fuori dal database:** Cloudflare R2, bucket con giurisdizione UE.
 - **Cifratura backup:** age, prima del caricamento su R2.
 - **CI e backup pianificati:** GitHub Actions.
+- **Email transazionali:** Brevo Free via SMTP per conferme account e recupero password.
 - **Accesso:** Supabase Auth per gli account applicativi; Cloudflare Access può aggiungere una lista di email autorizzate davanti all'app.
 
 Questa configurazione evita un VPS da amministrare e non introduce sincronizzazioni bancarie o servizi non necessari.
