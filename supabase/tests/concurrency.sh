@@ -9,6 +9,7 @@ fi
 
 user_id="00000000-0000-0000-0000-00000000e101"
 second_user_id="00000000-0000-0000-0000-00000000e108"
+third_user_id="00000000-0000-0000-0000-00000000e111"
 shared_space_id="00000000-0000-0000-0000-00000000e109"
 shared_category_id="00000000-0000-0000-0000-00000000e110"
 account_id="00000000-0000-0000-0000-00000000e102"
@@ -45,6 +46,11 @@ values ('$second_user_id','00000000-0000-0000-0000-000000000000','authenticated'
         'concurrency-owner-b@test.local','{}',now(),now())
 on conflict (id) do nothing;
 
+insert into auth.users(id, instance_id, aud, role, email, raw_user_meta_data, created_at, updated_at)
+values ('$third_user_id','00000000-0000-0000-0000-000000000000','authenticated','authenticated',
+        'concurrency-member-c@test.local','{}',now(),now())
+on conflict (id) do nothing;
+
 insert into public.spaces(id, kind, name, created_by)
 values ('$shared_space_id', 'shared', 'Concurrent owner test', '$user_id')
 on conflict (id) do nothing;
@@ -56,6 +62,10 @@ on conflict (space_id, user_id) do update set role = 'owner';
 insert into public.space_memberships(space_id, user_id, role)
 values ('$shared_space_id', '$second_user_id', 'owner')
 on conflict (space_id, user_id) do update set role = 'owner';
+
+insert into public.space_memberships(space_id, user_id, role)
+values ('$shared_space_id', '$third_user_id', 'member')
+on conflict (space_id, user_id) do update set role = 'member';
 
 insert into public.categories(id, space_id, kind, name)
 values ('$shared_category_id', '$shared_space_id', 'expense', 'Concurrent shared expenses')
@@ -197,6 +207,35 @@ if [[ "$write_status" -eq 0 ]] || ! grep -q 'Categoria non valida o archiviata' 
   echo "Concurrent deadline creation was not rejected after category archival."
   exit 1
 fi
+
+# A former owner must not retain authority from an RLS snapshot after waiting on the space lock.
+former_owner_log="$(mktemp)"
+remove_owner_log="$(mktemp)"
+trap 'rm -f "$account_archive_log" "$account_write_log" "$category_archive_log" "$category_write_log" "$former_owner_log" "$remove_owner_log"' EXIT
+
+docker exec "$container" psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 \
+  --command "begin; select set_config('request.jwt.claims', json_build_object('sub','$second_user_id','role','authenticated')::text, true); set local role authenticated; delete from public.space_memberships where space_id='$shared_space_id' and user_id='$user_id'; select pg_sleep(2); commit;" \
+  >"$remove_owner_log" 2>&1 &
+remove_owner_pid=$!
+sleep 0.25
+
+set +e
+docker exec "$container" psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 \
+  --command "begin; select set_config('request.jwt.claims', json_build_object('sub','$user_id','role','authenticated')::text, true); set local role authenticated; update public.space_memberships set role='owner' where space_id='$shared_space_id' and user_id='$third_user_id'; commit;" \
+  >"$former_owner_log" 2>&1
+former_owner_status=$?
+set -e
+wait "$remove_owner_pid"
+
+if [[ "$former_owner_status" -eq 0 ]] || ! grep -q 'Solo un owner può modificare le appartenenze' "$former_owner_log"; then
+  cat "$remove_owner_log" "$former_owner_log"
+  echo "A former owner retained membership-management authority."
+  exit 1
+fi
+
+# Restore A as owner for the separate last-owner concurrency test.
+docker exec "$container" psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 \
+  --command "insert into public.space_memberships(space_id,user_id,role) values ('$shared_space_id','$user_id','owner') on conflict (space_id,user_id) do update set role='owner';"
 
 # Two concurrent owner demotions must serialize; the second cannot remove the last owner.
 membership_a_log="$(mktemp)"
