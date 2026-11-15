@@ -3,7 +3,7 @@ do $$
 declare
   ua uuid := '00000000-0000-0000-0000-0000000000a1';
   ub uuid := '00000000-0000-0000-0000-0000000000b1';
-  sa uuid; sb uuid; sh uuid; cat_id uuid; personal_cat uuid; account_id uuid;
+  sa uuid; sb uuid; sh uuid; cat_id uuid; parent_cat uuid; personal_cat uuid; account_id uuid;
   tx_id uuid; v_expense_id uuid; settlement_id uuid; ok boolean; n int := 0;
 begin
   insert into auth.users(id, instance_id, aud, role, email, raw_user_meta_data, created_at, updated_at) values
@@ -21,8 +21,8 @@ begin
 
   perform set_config('request.jwt.claims',json_build_object('sub',ua,'role','authenticated','email','shared-a@test.local')::text,true);
   execute 'set local role authenticated';
-  insert into public.categories(space_id,kind,name) values(sh,'expense','Spese comuni') returning id into cat_id;
-  insert into public.categories(space_id,parent_id,name) values(sh,cat_id,'Alimentari') returning id into cat_id;
+  insert into public.categories(space_id,kind,name) values(sh,'expense','Spese comuni') returning id into parent_cat;
+  insert into public.categories(space_id,parent_id,name) values(sh,parent_cat,'Alimentari') returning id into cat_id;
   if not exists(select 1 from public.categories where id=cat_id and space_id=sh) then raise exception 'FAIL categoria condivisa'; end if; n:=n+1;
 
   insert into public.accounts(space_id,name,type,currency) values(sa,'Conto test','checking','EUR') returning id into account_id;
@@ -110,6 +110,21 @@ begin
   perform public.delete_shared_expense(v_expense_id);
   if not exists(select 1 from public.shared_expenses where id=v_expense_id and deleted_at is not null) then
     raise exception 'FAIL annullamento spesa'; end if; n:=n+1;
+
+  -- A child category whose parent is archived cannot be reused or extended.
+  update public.categories set archived_at=now() where id=parent_cat;
+  begin
+    perform public.save_shared_expense(null,sh,current_date,'Padre archiviato',cat_id,100,ua,'equal',
+      jsonb_build_array(jsonb_build_object('member_user_id',ua,'amount_cents',100)),null);
+    ok:=false;
+  exception when others then ok:=true; end;
+  if not ok then raise exception 'FAIL spesa con categoria figlia di un padre archiviato'; end if; n:=n+1;
+
+  begin
+    insert into public.categories(space_id,parent_id,name) values(sh,parent_cat,'Figlia tardiva');
+    ok:=false;
+  exception when others then ok:=true; end;
+  if not ok then raise exception 'FAIL creazione figlia sotto categoria padre archiviata'; end if; n:=n+1;
 
   -- An archived shared space is read-only: no new expense, settlement or category.
   update public.spaces set archived_at=now() where id=sh;
