@@ -24,6 +24,7 @@ begin execute _sql; return false; exception when others then return true; end $$
 -- 1. Registrazione crea profilo e spazio personale
 reset role;
 create temp table _personal_ids as select created_by, id from public.spaces where kind='personal';
+grant select on _personal_ids to authenticated, anon;
 select pg_temp.check('registrazione: 3 spazi personali', (select count(*) from public.spaces where kind='personal' and created_by in ('00000000-0000-0000-0000-00000000000a','00000000-0000-0000-0000-00000000000b','00000000-0000-0000-0000-00000000000c')) = 3);
 
 -- 2. A crea uno spazio condiviso e invita B come member e C come viewer
