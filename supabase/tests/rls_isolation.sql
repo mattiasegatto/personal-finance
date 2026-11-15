@@ -126,6 +126,17 @@ select pg_temp.check(
       )
   )
 );
+select pg_temp.check(
+  'anonimo non esegue funzioni applicative',
+  not exists (
+    select 1
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.prokind = 'f'
+      and has_function_privilege('anon', p.oid, 'EXECUTE')
+  )
+);
 
 -- 7. Anonimo: nessun accesso
 reset role;
