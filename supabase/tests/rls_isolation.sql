@@ -111,6 +111,21 @@ select pg_temp.check(
       and (p.proconfig is null or not p.proconfig @> array['search_path=pg_catalog, public, pg_temp'])
   )
 );
+select pg_temp.check(
+  'le funzioni trigger non sono invocabili direttamente',
+  not exists (
+    select 1
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.prokind = 'f'
+      and p.prorettype = 'trigger'::regtype
+      and (
+        has_function_privilege('authenticated', p.oid, 'EXECUTE')
+        or has_function_privilege('anon', p.oid, 'EXECUTE')
+      )
+  )
+);
 
 -- 7. Anonimo: nessun accesso
 reset role;
