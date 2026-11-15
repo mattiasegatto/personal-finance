@@ -227,9 +227,16 @@ former_owner_status=$?
 set -e
 wait "$remove_owner_pid"
 
-if [[ "$former_owner_status" -eq 0 ]] || ! grep -q 'Solo un owner può modificare le appartenenze' "$former_owner_log"; then
+if [[ "$former_owner_status" -eq 0 ]] && ! grep -q 'UPDATE 0' "$former_owner_log"; then
   cat "$remove_owner_log" "$former_owner_log"
   echo "A former owner retained membership-management authority."
+  exit 1
+fi
+third_role="$(docker exec "$container" psql --username postgres --dbname postgres --tuples-only --no-align \
+  --command "select role from public.space_memberships where space_id='$shared_space_id' and user_id='$third_user_id';")"
+if [[ "$third_role" != "member" ]]; then
+  cat "$remove_owner_log" "$former_owner_log"
+  echo "A former owner promoted another member after removal."
   exit 1
 fi
 
