@@ -9,7 +9,8 @@ insert into auth.users(id, instance_id, aud, role, email, raw_user_meta_data, cr
 values
  ('00000000-0000-0000-0000-00000000000a','00000000-0000-0000-0000-000000000000','authenticated','authenticated','a@test.local','{"display_name":"Utente A"}',now(),now()),
  ('00000000-0000-0000-0000-00000000000b','00000000-0000-0000-0000-000000000000','authenticated','authenticated','b@test.local','{"display_name":"Utente B"}',now(),now()),
- ('00000000-0000-0000-0000-00000000000c','00000000-0000-0000-0000-000000000000','authenticated','authenticated','c@test.local','{"display_name":"Utente C"}',now(),now());
+ ('00000000-0000-0000-0000-00000000000c','00000000-0000-0000-0000-000000000000','authenticated','authenticated','c@test.local','{"display_name":"Utente C"}',now(),now()),
+ ('00000000-0000-0000-0000-00000000000d','00000000-0000-0000-0000-000000000000','authenticated','authenticated','d@test.local','{"display_name":"Utente D"}',now(),now());
 
 create or replace function pg_temp.as_user(_id uuid, _email text) returns void language plpgsql as $$
 begin
@@ -25,13 +26,14 @@ begin execute _sql; return false; exception when others then return true; end $$
 reset role;
 create temp table _personal_ids as select created_by, id from public.spaces where kind='personal';
 grant select on _personal_ids to authenticated, anon;
-select pg_temp.check('registrazione: 3 spazi personali', (select count(*) from public.spaces where kind='personal' and created_by in ('00000000-0000-0000-0000-00000000000a','00000000-0000-0000-0000-00000000000b','00000000-0000-0000-0000-00000000000c')) = 3);
+select pg_temp.check('registrazione: 4 spazi personali', (select count(*) from public.spaces where kind='personal' and created_by in ('00000000-0000-0000-0000-00000000000a','00000000-0000-0000-0000-00000000000b','00000000-0000-0000-0000-00000000000c')) = 4);
 
 -- 2. A crea uno spazio condiviso e invita B come member e C come viewer
 select pg_temp.as_user('00000000-0000-0000-0000-00000000000a','a@test.local');
 create temp table _ids as select public.create_shared_space('Casa test') as sid;
 select public.invite_to_space((select sid from _ids), 'b@test.local', 'member');
 select public.invite_to_space((select sid from _ids), 'c@test.local', 'viewer');
+select public.invite_to_space((select sid from _ids), 'd@test.local', 'member');
 select public.invite_to_space((select sid from _ids), 'z@test.local', 'member');
 select pg_temp.check('owner non modifica i dati identificativi di un invito', pg_temp.fails($q$update public.space_invitations set email='changed@test.local' where email='z@test.local'$q$));
 update public.space_invitations set status='revoked' where email='z@test.local';
@@ -84,6 +86,16 @@ select pg_temp.check('viewer non vede spazi personali altrui', (select count(*) 
 select pg_temp.as_user('00000000-0000-0000-0000-00000000000a','a@test.local');
 select pg_temp.check('ultimo owner non può uscire', pg_temp.fails($$delete from public.space_memberships where user_id='00000000-0000-0000-0000-00000000000a' and space_id=(select sid from _ids)$$));
 select pg_temp.check('ultimo owner non può declassarsi', pg_temp.fails($$update public.space_memberships set role='member' where user_id='00000000-0000-0000-0000-00000000000a' and space_id=(select sid from _ids)$$));
+-- Archiviazione: un invito pendente non può essere accettato dopo l'archivio.
+update public.spaces set archived_at=now() where id=(select sid from _ids);
+select pg_temp.check('owner non può invitare in uno spazio archiviato', pg_temp.fails($select public.invite_to_space((select sid from _ids),'z@test.local','member')$));
+
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000d','d@test.local');
+select pg_temp.check('D vede il proprio invito pendente', (select count(*) from public.space_invitations where email='d@test.local') = 1);
+select pg_temp.check('D non può accettare un invito verso uno spazio archiviato', pg_temp.fails($select public.accept_invitation((select id from public.space_invitations where email='d@test.local'))$));
+select pg_temp.check('D non entra nello spazio archiviato', (select count(*) from public.spaces) = 1);
+
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a','a@test.local');
 with d as (delete from public.space_memberships where user_id='00000000-0000-0000-0000-00000000000c' returning 1)
 select pg_temp.check('owner rimuove il viewer', (select count(*) from d) = 1);
 
