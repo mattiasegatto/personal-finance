@@ -4,7 +4,7 @@ do $$
 declare
   ua uuid := '00000000-0000-0000-0000-0000000000a1';
   ub uuid := '00000000-0000-0000-0000-0000000000b1';
-  sa uuid; sb uuid; acc uuid; accb uuid; inc uuid; exp uuid; expb uuid; t1 uuid; t2 uuid; cycle_cat uuid; guarded_account uuid; guarded_tx uuid; v bigint; n int := 0; ok boolean;
+  sa uuid; sb uuid; acc uuid; accb uuid; inc uuid; exp uuid; expb uuid; t1 uuid; t2 uuid; cycle_cat uuid; guarded_account uuid; guarded_tx uuid; archived_account uuid; archived_inflow uuid; archived_outflow uuid; v bigint; n int := 0; ok boolean;
 begin
   insert into auth.users(id, instance_id, aud, role, email, raw_user_meta_data, created_at, updated_at) values
    (ua,'00000000-0000-0000-0000-000000000000','authenticated','authenticated','fa@test.local','{"display_name":"A"}',now(),now()),
@@ -71,6 +71,38 @@ begin
   begin delete from public.accounts where id = acc; ok := false;
   exception when others then ok := true; end;
   if not ok or not exists (select 1 from public.accounts where id = acc) then raise exception 'FAIL eliminato conto con movimenti'; end if; n := n + 1;
+
+  -- An archived account has a zero balance and must remain financially immutable.
+  insert into public.accounts(space_id, name, initial_balance_cents)
+  values (sa, 'Conto archiviato', 0) returning id into archived_account;
+  insert into public.transactions(space_id, account_id, category_id, direction, amount_cents, occurred_on)
+  values (sa, archived_account, inc, 'inflow', 100, '2026-11-04') returning id into archived_inflow;
+  insert into public.transactions(space_id, account_id, category_id, direction, amount_cents, occurred_on)
+  values (sa, archived_account, exp, 'outflow', 100, '2026-11-05') returning id into archived_outflow;
+  update public.accounts set archived_at = now() where id = archived_account;
+  if (select balance_cents from public.account_balances where account_id = archived_account) <> 0 then
+    raise exception 'FAIL conto archiviato non ha saldo zero'; end if;
+  n := n + 1;
+
+  begin
+    update public.transactions set amount_cents = 101 where id = archived_inflow;
+    ok := false;
+  exception when others then
+    ok := true;
+  end;
+  if not ok or (select amount_cents from public.transactions where id = archived_inflow) <> 100 then
+    raise exception 'FAIL modifica del saldo su conto archiviato'; end if;
+  n := n + 1;
+
+  begin
+    update public.accounts set initial_balance_cents = 1 where id = archived_account;
+    ok := false;
+  exception when others then
+    ok := true;
+  end;
+  if not ok or (select initial_balance_cents from public.accounts where id = archived_account) <> 0 then
+    raise exception 'FAIL modifica saldo iniziale su conto archiviato'; end if;
+  n := n + 1;
 
   -- Regression: temporary relations must never shadow real tables inside guards.
   insert into public.accounts(space_id, name, initial_balance_cents)
