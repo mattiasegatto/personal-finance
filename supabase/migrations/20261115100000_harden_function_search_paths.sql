@@ -83,3 +83,8 @@ alter default privileges for role postgres in schema public
   revoke all on sequences from public, anon, authenticated;
 alter default privileges for role postgres
   revoke execute on functions from public, anon, authenticated;
+
+-- Remove PostgreSQL's default PUBLIC EXECUTE grant from every existing
+-- application function. Authenticated RPC/helper grants declared by earlier
+-- migrations remain intact; trigger functions were revoked above.
+revoke execute on all functions in schema public from public, anon;
