@@ -115,6 +115,16 @@ begin
   execute 'create temporary table categories (id uuid, space_id uuid, archived_at timestamptz, parent_id uuid, kind public.category_kind) on commit drop';
 
   begin
+    update public.categories set kind='income' where id=exp;
+    ok := false;
+  exception when others then
+    ok := true;
+  end;
+  if not ok or (select kind from public.categories where id=exp) <> 'expense' then
+    raise exception 'FAIL tabella temporanea transactions ha aggirato il controllo delle categorie'; end if;
+  n := n + 1;
+
+  begin
     update public.accounts set archived_at = now() where id = guarded_account;
     ok := false;
   exception when others then
