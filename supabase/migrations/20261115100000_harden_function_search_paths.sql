@@ -24,3 +24,25 @@ begin
   end loop;
 end;
 $$;
+
+-- Trigger functions are implementation details, never RPC endpoints. Their
+-- execution as triggers does not require callers to hold EXECUTE privileges.
+do $$
+declare
+  trigger_function record;
+begin
+  for trigger_function in
+    select p.oid::regprocedure as signature
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.prokind = 'f'
+      and p.prorettype = 'trigger'::regtype
+  loop
+    execute format(
+      'revoke all on function %s from public, anon, authenticated',
+      trigger_function.signature
+    );
+  end loop;
+end;
+$$;
