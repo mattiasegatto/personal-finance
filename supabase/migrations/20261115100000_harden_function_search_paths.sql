@@ -73,16 +73,14 @@ grant select, insert, update on public.recurring_items, public.deadlines to auth
 grant select on public.net_worth_totals to authenticated;
 
 -- New application objects must not silently inherit broad API permissions.
-alter default privileges for role postgres
-  revoke all on tables from public, anon, authenticated;
 alter default privileges for role postgres in schema public
   revoke all on tables from public, anon, authenticated;
-alter default privileges for role postgres
-  revoke all on sequences from public, anon, authenticated;
 alter default privileges for role postgres in schema public
   revoke all on sequences from public, anon, authenticated;
 alter default privileges for role postgres
-  revoke execute on functions from public, anon, authenticated;
+  revoke execute on functions from public;
+alter default privileges for role postgres in schema public
+  revoke execute on functions from anon, authenticated;
 
 -- Remove PostgreSQL's default PUBLIC EXECUTE grant from every existing
 -- application function. Authenticated RPC/helper grants declared by earlier
