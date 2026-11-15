@@ -25,15 +25,15 @@ begin
     new.created_by := auth.uid();
   end if;
 
-  if not public.has_space_role(new.space_id, auth.uid(), array['owner','member']::public.space_role[]) then
-    raise exception 'Non hai i permessi per modificare questa spesa.';
-  end if;
   perform 1
   from public.spaces s
   where s.id = new.space_id and s.kind = 'shared' and s.archived_at is null
   for share;
   if not found then
     raise exception 'Le spese condivise richiedono uno spazio condiviso attivo.';
+  end if;
+  if not public.has_space_role(new.space_id, auth.uid(), array['owner','member']::public.space_role[]) then
+    raise exception 'Non hai i permessi per modificare questa spesa.';
   end if;
   if not exists (
     select 1 from public.space_memberships m
@@ -103,15 +103,15 @@ begin
     new.created_by := auth.uid();
   end if;
 
-  if not public.has_space_role(new.space_id, auth.uid(), array['owner','member']::public.space_role[]) then
-    raise exception 'Non hai i permessi per registrare rimborsi.';
-  end if;
   perform 1
   from public.spaces s
   where s.id = new.space_id and s.kind = 'shared' and s.archived_at is null
   for share;
   if not found then
     raise exception 'Il rimborso richiede uno spazio condiviso attivo.';
+  end if;
+  if not public.has_space_role(new.space_id, auth.uid(), array['owner','member']::public.space_role[]) then
+    raise exception 'Non hai i permessi per registrare rimborsi.';
   end if;
   if not exists (
     select 1 from public.space_memberships
@@ -165,6 +165,9 @@ declare sk public.space_kind; root_kind public.category_kind;
 begin
   select kind into sk from public.spaces where id=new.space_id and archived_at is null for share;
   if not found then raise exception 'Lo spazio non è attivo.'; end if;
+  if sk = 'shared' and not public.has_space_role(new.space_id, auth.uid(), array['owner','member']::public.space_role[]) then
+    raise exception 'Non hai i permessi per modificare le categorie dello spazio.';
+  end if;
   if new.parent_id is null then root_kind := new.kind;
   else root_kind := public.category_root_kind(new.parent_id);
   end if;
