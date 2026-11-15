@@ -87,3 +87,6 @@ begin
   return inv.space_id;
 end;
 $$;
+
+-- Used by the invitation SELECT policy to match the caller's JWT email.
+grant execute on function public.current_email() to authenticated;
