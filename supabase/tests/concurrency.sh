@@ -10,6 +10,7 @@ fi
 user_id="00000000-0000-0000-0000-00000000e101"
 second_user_id="00000000-0000-0000-0000-00000000e108"
 shared_space_id="00000000-0000-0000-0000-00000000e109"
+shared_category_id="00000000-0000-0000-0000-00000000e110"
 account_id="00000000-0000-0000-0000-00000000e102"
 transaction_category_id="00000000-0000-0000-0000-00000000e103"
 parent_category_id="00000000-0000-0000-0000-00000000e104"
@@ -55,6 +56,10 @@ on conflict (space_id, user_id) do update set role = 'owner';
 insert into public.space_memberships(space_id, user_id, role)
 values ('$shared_space_id', '$second_user_id', 'owner')
 on conflict (space_id, user_id) do update set role = 'owner';
+
+insert into public.categories(id, space_id, kind, name)
+values ('$shared_category_id', '$shared_space_id', 'expense', 'Concurrent shared expenses')
+on conflict (id) do nothing;
 SQL
 
 docker exec -i "$container" psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 <<SQL
@@ -218,4 +223,29 @@ if [[ "$owner_b_status" -eq 0 ]] || ! grep -q 'deve avere almeno un owner' "$mem
   exit 1
 fi
 
-echo "ALL_PASSED: transaction, recurrence, deadline, child-category and membership writes serialize correctly."
+# A member removed while an expense RPC is waiting for the space lock must not write afterward.
+shared_write_log="$(mktemp)"
+member_remove_log="$(mktemp)"
+trap 'rm -f "$account_archive_log" "$account_write_log" "$category_archive_log" "$category_write_log" "$membership_a_log" "$membership_b_log" "$shared_write_log" "$member_remove_log"' EXIT
+
+docker exec "$container" psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 \
+  --command "begin; select set_config('request.jwt.claims', json_build_object('sub','$second_user_id','role','authenticated')::text, true); set local role authenticated; delete from public.space_memberships where space_id='$shared_space_id' and user_id='$user_id'; select pg_sleep(2); commit;" \
+  >"$member_remove_log" 2>&1 &
+remove_pid=$!
+sleep 0.25
+
+set +e
+docker exec "$container" psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 \
+  --command "begin; select set_config('request.jwt.claims', json_build_object('sub','$user_id','role','authenticated')::text, true); set local role authenticated; select public.save_shared_expense(null,'$shared_space_id',current_date,'Race dopo rimozione', '$shared_category_id',100,'$second_user_id','amount',jsonb_build_array(jsonb_build_object('member_user_id','$second_user_id','amount_cents',100)),null); commit;" \
+  >"$shared_write_log" 2>&1
+shared_write_status=$?
+set -e
+wait "$remove_pid"
+
+if [[ "$shared_write_status" -eq 0 ]] || ! grep -q 'Non hai i permessi per modificare questa spesa' "$shared_write_log"; then
+  cat "$member_remove_log" "$shared_write_log"
+  echo "A removed member was still able to create a shared expense."
+  exit 1
+fi
+
+echo "ALL_PASSED: transaction, recurrence, deadline, category, membership and shared-write concurrency checks passed."
