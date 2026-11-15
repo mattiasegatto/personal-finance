@@ -165,7 +165,8 @@ declare sk public.space_kind; root_kind public.category_kind;
 begin
   select kind into sk from public.spaces where id=new.space_id and archived_at is null for share;
   if not found then raise exception 'Lo spazio non è attivo.'; end if;
-  if sk = 'shared' and not public.has_space_role(new.space_id, auth.uid(), array['owner','member']::public.space_role[]) then
+  if sk = 'shared' and auth.uid() is not null
+    and not public.has_space_role(new.space_id, auth.uid(), array['owner','member']::public.space_role[]) then
     raise exception 'Non hai i permessi per modificare le categorie dello spazio.';
   end if;
   if new.parent_id is null then root_kind := new.kind;
