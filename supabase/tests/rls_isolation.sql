@@ -137,6 +137,66 @@ select pg_temp.check(
       and has_function_privilege('anon', p.oid, 'EXECUTE')
   )
 );
+select pg_temp.check(
+  'anonimo non ha privilegi sulle tabelle public',
+  not exists (
+    select 1
+    from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public'
+      and c.relkind in ('r','p','v','m')
+      and (
+        has_table_privilege('anon', c.oid, 'SELECT')
+        or has_table_privilege('anon', c.oid, 'INSERT')
+        or has_table_privilege('anon', c.oid, 'UPDATE')
+        or has_table_privilege('anon', c.oid, 'DELETE')
+        or has_table_privilege('anon', c.oid, 'TRUNCATE')
+        or has_table_privilege('anon', c.oid, 'REFERENCES')
+        or has_table_privilege('anon', c.oid, 'TRIGGER')
+      )
+  )
+);
+select pg_temp.check(
+  'authenticated non può eseguire TRUNCATE',
+  not exists (
+    select 1
+    from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public'
+      and c.relkind in ('r','p')
+      and has_table_privilege('authenticated', c.oid, 'TRUNCATE')
+  )
+);
+select pg_temp.check(
+  'authenticated può eliminare solo conti vuoti e appartenenze',
+  not exists (
+    select 1
+    from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public'
+      and c.relkind in ('r','p')
+      and c.relname not in ('accounts','space_memberships')
+      and has_table_privilege('authenticated', c.oid, 'DELETE')
+  )
+);
+select pg_temp.check(
+  'trasferimenti e spese condivise non sono scrivibili direttamente',
+  not exists (
+    select 1
+    from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public'
+      and c.relname = any(array[
+        'transfers','transfer_transaction_links','shared_expenses',
+        'shared_expense_shares','shared_settlements'
+      ])
+      and (
+        has_table_privilege('authenticated', c.oid, 'INSERT')
+        or has_table_privilege('authenticated', c.oid, 'UPDATE')
+        or has_table_privilege('authenticated', c.oid, 'DELETE')
+      )
+  )
+);
 
 -- 7. Anonimo: nessun accesso
 reset role;
