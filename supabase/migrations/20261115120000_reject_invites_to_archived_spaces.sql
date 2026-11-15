@@ -13,10 +13,6 @@ declare
   iid uuid;
   s public.spaces;
 begin
-  if not public.has_space_role(_space, auth.uid(), array['owner']::public.space_role[]) then
-    raise exception 'Solo un owner può invitare';
-  end if;
-
   select * into s
   from public.spaces
   where id = _space
@@ -27,6 +23,10 @@ begin
   end if;
   if s.archived_at is not null then
     raise exception 'Lo spazio è archiviato';
+  end if;
+
+  if not public.has_space_role(_space, auth.uid(), array['owner']::public.space_role[]) then
+    raise exception 'Solo un owner può invitare';
   end if;
   if _role = 'owner' then
     raise exception 'Gli inviti non possono assegnare il ruolo owner';
