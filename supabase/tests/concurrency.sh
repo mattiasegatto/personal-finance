@@ -227,9 +227,15 @@ former_owner_status=$?
 set -e
 wait "$remove_owner_pid"
 
-if [[ "$former_owner_status" -eq 0 ]] && ! grep -q 'UPDATE 0' "$former_owner_log"; then
+if [[ "$former_owner_status" -eq 0 ]]; then
+  if ! grep -q 'UPDATE 0' "$former_owner_log"; then
+    cat "$remove_owner_log" "$former_owner_log"
+    echo "A former owner retained membership-management authority."
+    exit 1
+  fi
+elif ! grep -q 'Solo un owner può modificare le appartenenze' "$former_owner_log"; then
   cat "$remove_owner_log" "$former_owner_log"
-  echo "A former owner retained membership-management authority."
+  echo "Former-owner write failed for an unexpected reason."
   exit 1
 fi
 third_role="$(docker exec "$container" psql --username postgres --dbname postgres --tuples-only --no-align \
