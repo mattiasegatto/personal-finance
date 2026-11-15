@@ -123,7 +123,15 @@ select pg_temp.check(
     join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public'
       and p.prokind = 'f'
-      and (p.proconfig is null or not p.proconfig @> array['search_path=pg_catalog, public, pg_temp'])
+      and (
+        p.proconfig is null
+        or not exists (
+          select 1
+          from unnest(p.proconfig) as cfg
+          where cfg like 'search_path=%'
+            and replace(split_part(cfg, '=', 2), ' ', '') = 'pg_catalog,public,pg_temp'
+        )
+      )
   )
 );
 select pg_temp.check(
