@@ -107,7 +107,7 @@ create or replace function public.guard_active_category_ancestry()
 returns trigger
 language plpgsql
 set search_path = pg_catalog, public, pg_temp
-as $
+as $q$
 declare
   parent_archived boolean;
 begin
@@ -144,7 +144,7 @@ begin
 
   return new;
 end;
-$;
+$q$;
 
 create trigger a_active_category_ancestry_shared_expenses
 before insert or update on public.shared_expenses
