@@ -46,3 +46,40 @@ begin
   end loop;
 end;
 $$;
+
+-- Fail closed on table/sequence privileges, including grants inherited from
+-- default privileges in a Supabase project. Regrant only the operations used
+-- by the application; privileged writes remain inside validated RPCs.
+revoke all on all tables in schema public from public, anon, authenticated;
+revoke all on all sequences in schema public from public, anon, authenticated;
+
+grant select, update on public.profiles to authenticated;
+grant select, update on public.spaces to authenticated;
+grant select, update, delete on public.space_memberships to authenticated;
+grant select on public.space_invitations to authenticated;
+grant update (status) on public.space_invitations to authenticated;
+
+grant select, insert, update, delete on public.accounts to authenticated;
+grant select, insert, update on public.categories to authenticated;
+grant select, insert, update on public.transactions to authenticated;
+grant select on public.transaction_revisions to authenticated;
+grant select on public.account_balances to authenticated;
+
+grant select on public.transfers, public.transfer_transaction_links to authenticated;
+grant select, insert, update on public.investments, public.financial_debts to authenticated;
+grant select on public.shared_expenses, public.shared_expense_shares,
+  public.shared_settlements to authenticated;
+grant select, insert, update on public.recurring_items, public.deadlines to authenticated;
+grant select on public.net_worth_totals to authenticated;
+
+-- New application objects must not silently inherit broad API permissions.
+alter default privileges for role postgres
+  revoke all on tables from public, anon, authenticated;
+alter default privileges for role postgres in schema public
+  revoke all on tables from public, anon, authenticated;
+alter default privileges for role postgres
+  revoke all on sequences from public, anon, authenticated;
+alter default privileges for role postgres in schema public
+  revoke all on sequences from public, anon, authenticated;
+alter default privileges for role postgres
+  revoke execute on functions from public, anon, authenticated;
