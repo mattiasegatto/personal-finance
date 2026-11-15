@@ -110,6 +110,28 @@ begin
   perform public.delete_shared_expense(v_expense_id);
   if not exists(select 1 from public.shared_expenses where id=v_expense_id and deleted_at is not null) then
     raise exception 'FAIL annullamento spesa'; end if; n:=n+1;
+
+  -- An archived shared space is read-only: no new expense, settlement or category.
+  update public.spaces set archived_at=now() where id=sh;
+  begin
+    perform public.save_shared_expense(null,sh,current_date,'Spazio archiviato',cat_id,100,ua,'equal',
+      jsonb_build_array(jsonb_build_object('member_user_id',ua,'amount_cents',100)),null);
+    ok:=false;
+  exception when others then ok:=true; end;
+  if not ok then raise exception 'FAIL nuova spesa in spazio archiviato'; end if; n:=n+1;
+
+  begin
+    perform public.save_shared_settlement(null,sh,current_date,ua,ub,100,'rimborso','Spazio archiviato',null);
+    ok:=false;
+  exception when others then ok:=true; end;
+  if not ok then raise exception 'FAIL nuovo rimborso in spazio archiviato'; end if; n:=n+1;
+
+  begin
+    insert into public.categories(space_id,kind,name) values(sh,'expense','Categoria tardiva');
+    ok:=false;
+  exception when others then ok:=true; end;
+  if not ok then raise exception 'FAIL nuova categoria in spazio archiviato'; end if; n:=n+1;
+
   execute 'reset role';
   raise exception 'ALL_PASSED: % controlli',n;
 end $$;
