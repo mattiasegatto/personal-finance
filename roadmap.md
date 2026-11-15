@@ -14,6 +14,7 @@ Il branch operativo è `migration/standalone-stack`. Il database usa Supabase Po
 - [x] Protezioni di archiviazione e serializzazione delle scritture concorrenti.
 - [x] Integrità dei collegamenti tra movimenti personali, spese condivise e rimborsi.
 - [x] Protezione delle funzioni di membership e degli inviti.
+- [x] Predicato degli spazi personali limitato al proprietario autenticato, con regressione contro l'enumerazione degli spazi altrui.
 - [x] Scrittura delle spese condivise consentita solo tramite RPC validate.
 - [x] Verifiche RLS, privilegi anonimi, isolamento e integrità per le aree finanziarie.
 - [x] Test di concorrenza con sessioni PostgreSQL indipendenti.
@@ -35,6 +36,7 @@ Il branch operativo è `migration/standalone-stack`. Il database usa Supabase Po
 
 - [x] Frontend CI verde con Supabase CLI 3.1.0, Bun frozen install, formattazione, sintassi script backup/restore, ESLint, Vitest, build produzione e dry-run Cloudflare Worker.
 - [x] Database CI verde con Supabase CLI 3.1.0: ricostruzione completa, isolamento spazi/membership, finanza personale, trasferimenti, spese condivise, scadenze, ricorrenze, investimenti/debiti e test di concorrenza.
+- [x] Regressione aggiunta e verificata: un utente autenticato non può interrogare l'esistenza dello spazio personale di un altro utente.
 - [x] La verifica è stata eseguita senza collegarsi a un database remoto e senza effettuare deploy.
 
 ## Lavori in corso
