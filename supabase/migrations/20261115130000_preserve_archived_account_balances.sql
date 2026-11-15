@@ -1,5 +1,5 @@
--- An archived account must remain at zero balance. Prevent edits to its
--- opening balance and to movement fields that change the derived balance.
+-- Prevent ordinary edits from changing the balance of an archived account.
+-- The existing explicit exception is logical cancellation of a transfer RPC.
 create or replace function public.guard_account()
 returns trigger
 language plpgsql
@@ -89,7 +89,14 @@ begin
     or new.account_id is distinct from old.account_id
     or new.amount_cents is distinct from old.amount_cents
     or new.direction is distinct from old.direction
-    or new.deleted_at is distinct from old.deleted_at
+    or (
+      new.deleted_at is distinct from old.deleted_at
+      and not (
+        new.operation_type = 'transfer'
+        and current_setting('app.transfer_rpc', true) = 'on'
+        and new.deleted_at is not null
+      )
+    )
   ) then
     raise exception 'Il conto è archiviato: non puoi modificare il saldo dei movimenti.';
   end if;
