@@ -103,6 +103,49 @@ begin
 end;
 $$;
 
+create or replace function public.guard_active_category_ancestry()
+returns trigger
+language plpgsql
+set search_path = pg_catalog, public, pg_temp
+as $
+declare
+  parent_archived boolean;
+begin
+  if tg_op = 'UPDATE' then
+    if tg_table_name = 'transactions' then
+      if new.category_id = old.category_id then
+        return new;
+      end if;
+    elsif tg_table_name = 'recurring_items' then
+      if new.category_id = old.category_id and (old.active or not new.active) then
+        return new;
+      end if;
+    elsif tg_table_name = 'deadlines' then
+      if new.category_id = old.category_id then
+        return new;
+      end if;
+    elsif tg_table_name = 'shared_expenses' then
+      if new.category_id = old.category_id then
+        return new;
+      end if;
+    end if;
+  end if;
+
+  select p.archived_at is not null
+    into parent_archived
+  from public.categories c
+  join public.categories p on p.id = c.parent_id
+  where c.id = new.category_id
+  for share of p;
+
+  if coalesce(parent_archived, false) then
+    raise exception 'La categoria padre è archiviata.';
+  end if;
+
+  return new;
+end;
+$;
+
 create trigger a_active_category_ancestry_shared_expenses
 before insert or update on public.shared_expenses
 for each row execute function public.guard_active_category_ancestry();
