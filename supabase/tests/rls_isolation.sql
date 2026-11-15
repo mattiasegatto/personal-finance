@@ -26,7 +26,7 @@ begin execute _sql; return false; exception when others then return true; end $$
 reset role;
 create temp table _personal_ids as select created_by, id from public.spaces where kind='personal';
 grant select on _personal_ids to authenticated, anon;
-select pg_temp.check('registrazione: 4 spazi personali', (select count(*) from public.spaces where kind='personal' and created_by in ('00000000-0000-0000-0000-00000000000a','00000000-0000-0000-0000-00000000000b','00000000-0000-0000-0000-00000000000c')) = 4);
+select pg_temp.check('registrazione: 4 spazi personali', (select count(*) from public.spaces where kind='personal' and created_by in ('00000000-0000-0000-0000-00000000000a','00000000-0000-0000-0000-00000000000b','00000000-0000-0000-0000-00000000000c','00000000-0000-0000-0000-00000000000d')) = 4);
 
 -- 2. A crea uno spazio condiviso e invita B come member e C come viewer
 select pg_temp.as_user('00000000-0000-0000-0000-00000000000a','a@test.local');
@@ -88,11 +88,11 @@ select pg_temp.check('ultimo owner non può uscire', pg_temp.fails($$delete from
 select pg_temp.check('ultimo owner non può declassarsi', pg_temp.fails($$update public.space_memberships set role='member' where user_id='00000000-0000-0000-0000-00000000000a' and space_id=(select sid from _ids)$$));
 -- Archiviazione: un invito pendente non può essere accettato dopo l'archivio.
 update public.spaces set archived_at=now() where id=(select sid from _ids);
-select pg_temp.check('owner non può invitare in uno spazio archiviato', pg_temp.fails($select public.invite_to_space((select sid from _ids),'z@test.local','member')$));
+select pg_temp.check('owner non può invitare in uno spazio archiviato', pg_temp.fails($q$select public.invite_to_space((select sid from _ids),'z@test.local','member')$q$));
 
 select pg_temp.as_user('00000000-0000-0000-0000-00000000000d','d@test.local');
 select pg_temp.check('D vede il proprio invito pendente', (select count(*) from public.space_invitations where email='d@test.local') = 1);
-select pg_temp.check('D non può accettare un invito verso uno spazio archiviato', pg_temp.fails($select public.accept_invitation((select id from public.space_invitations where email='d@test.local'))$));
+select pg_temp.check('D non può accettare un invito verso uno spazio archiviato', pg_temp.fails($q$select public.accept_invitation((select id from public.space_invitations where email='d@test.local'))$q$));
 select pg_temp.check('D non entra nello spazio archiviato', (select count(*) from public.spaces) = 1);
 
 select pg_temp.as_user('00000000-0000-0000-0000-00000000000a','a@test.local');
