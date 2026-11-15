@@ -12,6 +12,9 @@ begin
     end if;
   end if;
   if new.parent_id is not null then
+    if new.parent_id = new.id then
+      raise exception 'Una categoria non può essere padre di sé stessa.';
+    end if;
     select * into p from public.categories where id = new.parent_id for share;
     if not found or p.space_id is distinct from new.space_id then raise exception 'La categoria padre appartiene a un altro spazio.'; end if;
     if p.archived_at is not null then raise exception 'La categoria padre è archiviata.'; end if;
