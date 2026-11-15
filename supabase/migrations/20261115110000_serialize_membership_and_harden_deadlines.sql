@@ -1,5 +1,30 @@
 -- Serialize membership mutations per space so concurrent owner removals
 -- cannot leave a shared space without an owner.
+create or replace function public.guard_space_update()
+returns trigger
+language plpgsql
+set search_path = pg_catalog, public, pg_temp
+as $q$
+begin
+  -- RLS may have evaluated USING before waiting on the space row lock.
+  -- Recheck ownership after the UPDATE has acquired that lock.
+  if auth.uid() is not null
+    and not public.has_space_role(old.id, auth.uid(), array['owner']::public.space_role[]) then
+    raise exception 'Solo un owner può modificare lo spazio.';
+  end if;
+
+  if new.kind <> old.kind or new.created_by <> old.created_by or new.created_at <> old.created_at then
+    raise exception 'Tipo, autore e data di creazione di uno spazio non sono modificabili';
+  end if;
+  if old.kind = 'personal' and new.archived_at is not null then
+    raise exception 'Lo spazio personale non può essere archiviato';
+  end if;
+  return new;
+end;
+$q$;
+
+revoke all on function public.guard_space_update() from public, anon, authenticated;
+
 create or replace function public.guard_membership()
 returns trigger
 language plpgsql
@@ -41,6 +66,18 @@ begin
   -- The parent space may already be deleted during ON DELETE CASCADE.
   if s.id is null then
     return coalesce(new, old);
+  end if;
+
+  -- Recheck the actor after taking the per-space lock. A former owner may
+  -- still have passed the RLS USING snapshot before waiting for this lock.
+  if tg_op = 'UPDATE' and auth.uid() is not null
+    and not public.has_space_role(old.space_id, auth.uid(), array['owner']::public.space_role[]) then
+    raise exception 'Solo un owner può modificare le appartenenze.';
+  end if;
+  if tg_op = 'DELETE' and auth.uid() is not null
+    and auth.uid() <> old.user_id
+    and not public.has_space_role(old.space_id, auth.uid(), array['owner']::public.space_role[]) then
+    raise exception 'Solo un owner può rimuovere altri membri.';
   end if;
 
   if s.kind = 'personal' and tg_op = 'DELETE' then
