@@ -6,7 +6,7 @@ declare
   ub uuid := '00000000-0000-0000-0000-0000000000d1';
   sa uuid; sb uuid;
   a1 uuid; a2 uuid; a3 uuid; b1 uuid;
-  tid uuid; stx uuid; dtx uuid;
+  tid uuid; stx uuid; dtx uuid; arch_cat uuid; arch_transfer uuid;
   v1 bigint; v2 bigint; n int := 0; ok boolean;
 begin
   insert into auth.users(id, instance_id, aud, role, email, raw_user_meta_data, created_at, updated_at) values
@@ -101,6 +101,21 @@ begin
   begin perform public.delete_transfer(tid); ok:=false;
   exception when others then ok:=true; end;
   if not ok then raise exception 'FAIL doppio annullamento accettato'; end if; n:=n+1;
+
+  -- L'annullamento logico di un trasferimento resta consentito anche dopo
+  -- l'archiviazione dei conti, come previsto dalla regola applicativa.
+  insert into public.categories(space_id,kind,name) values(sa,'expense','Spesa archiviazione')
+  returning id into arch_cat;
+  arch_transfer := public.create_transfer(a1,a2,100000,'2026-11-13','Transfer archiviabile');
+  insert into public.transactions(space_id,account_id,category_id,direction,amount_cents,occurred_on)
+  values(sa,a2,arch_cat,'outflow',120000,'2026-11-13');
+  if (select balance_cents from public.account_balances where account_id=a1)<>0
+    or (select balance_cents from public.account_balances where account_id=a2)<>0 then
+    raise exception 'FAIL saldi prima di archiviare i conti'; end if; n:=n+1;
+  update public.accounts set archived_at=now() where id in (a1,a2);
+  perform public.delete_transfer(arch_transfer);
+  if (select deleted_at from public.transfers where id=arch_transfer) is null then
+    raise exception 'FAIL annullamento trasferimento su conti archiviati'; end if; n:=n+1;
 
   -- 7 ordinari: la categoria resta obbligatoria
   begin
