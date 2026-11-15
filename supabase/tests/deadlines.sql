@@ -10,6 +10,7 @@ begin
  values(u,'authenticated','authenticated',u::text||'@example.test','',now(),'{}','{}',now(),now());
  perform set_config('request.jwt.claim.sub',u::text,true);
  perform set_config('request.jwt.claim.role','authenticated',true);
+ execute 'set local role authenticated';
  select id into s from public.spaces where created_by=u and kind='personal';
  insert into public.accounts(space_id,name,type,currency) values(s,'Conto scadenze','checking','EUR') returning id into a;
  insert into public.categories(space_id,kind,name) values(s,'expense','Scadenze test') returning id into c;
@@ -37,6 +38,17 @@ begin
    if sqlerrm = 'TEST_FAILURE_PARENT_CATEGORY_ARCHIVE_WAS_ALLOWED' then raise; end if;
    if sqlerrm not like '%scadenza aperta%' then raise; end if;
  end;
+ -- A caller-settable custom GUC must not authorize a direct state transition.
+ perform set_config('app.deadline_rpc','on',true);
+ begin
+   update public.deadlines set status='cancelled' where id=d;
+   raise exception 'TEST_FAILURE_CALLER_GUC_AUTHORIZED_DEADLINE_TRANSITION';
+ exception when others then
+   if sqlerrm = 'TEST_FAILURE_CALLER_GUC_AUTHORIZED_DEADLINE_TRANSITION' then raise; end if;
+   if sqlerrm not like '%Lo stato si modifica solo tramite la funzione dedicata%' then raise; end if;
+ end;
+ perform set_config('app.deadline_rpc','off',true);
+
  tx:=public.complete_deadline(d);
  if not exists(select 1 from public.transactions where id=tx and amount_cents=4567) then raise exception 'Movimento non creato'; end if;
  if (select status from public.deadlines where id=d)<>'completed' then raise exception 'Scadenza non completata'; end if;
