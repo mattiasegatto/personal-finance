@@ -23,6 +23,7 @@ begin execute _sql; return false; exception when others then return true; end $$
 
 -- 1. Registrazione crea profilo e spazio personale
 reset role;
+create temp table _personal_ids as select created_by, id from public.spaces where kind='personal';
 select pg_temp.check('registrazione: 3 spazi personali', (select count(*) from public.spaces where kind='personal' and created_by in ('00000000-0000-0000-0000-00000000000a','00000000-0000-0000-0000-00000000000b','00000000-0000-0000-0000-00000000000c')) = 3);
 
 -- 2. A crea uno spazio condiviso e invita B come member e C come viewer
@@ -43,6 +44,8 @@ select pg_temp.check('tipo spazio immutabile', pg_temp.fails($$update public.spa
 -- 3. B prima di accettare: non vede lo spazio condiviso né quello personale di A
 select pg_temp.as_user('00000000-0000-0000-0000-00000000000b','b@test.local');
 select pg_temp.check('B vede solo il proprio spazio prima di accettare', (select count(*) from public.spaces) = 1);
+select pg_temp.check('B riconosce il proprio spazio personale', public.is_personal_space((select id from _personal_ids where created_by='00000000-0000-0000-0000-00000000000b')));
+select pg_temp.check('B non può interrogare lo spazio personale di A', not public.is_personal_space((select id from _personal_ids where created_by='00000000-0000-0000-0000-00000000000a')));
 select pg_temp.check('B vede il proprio invito', (select count(*) from public.space_invitations) = 1);
 select pg_temp.check('B non può interrogare l’appartenenza di A', not public.is_space_member((select sid from _ids), '00000000-0000-0000-0000-00000000000a'));
 select pg_temp.check('B non può interrogare il ruolo di A', not public.has_space_role((select sid from _ids), '00000000-0000-0000-0000-00000000000a', array['owner']::public.space_role[]));
