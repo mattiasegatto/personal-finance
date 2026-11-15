@@ -199,14 +199,14 @@ membership_b_log="$(mktemp)"
 trap 'rm -f "$account_archive_log" "$account_write_log" "$category_archive_log" "$category_write_log" "$membership_a_log" "$membership_b_log"' EXIT
 
 docker exec "$container" psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 \
-  --command "begin; select set_config('request.jwt.claims', '{\\"sub\\":\\"$user_id\\",\\"role\\":\\"authenticated\\"}', true); set local role authenticated; update public.space_memberships set role='member' where space_id='$shared_space_id' and user_id='$user_id'; select pg_sleep(2); commit;" \
+  --command "begin; select set_config('request.jwt.claims', json_build_object('sub','$user_id','role','authenticated')::text, true); set local role authenticated; update public.space_memberships set role='member' where space_id='$shared_space_id' and user_id='$user_id'; select pg_sleep(2); commit;" \
   >"$membership_a_log" 2>&1 &
 owner_a_pid=$!
 sleep 0.25
 
 set +e
 docker exec "$container" psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 \
-  --command "begin; select set_config('request.jwt.claims', '{\\"sub\\":\\"$second_user_id\\",\\"role\\":\\"authenticated\\"}', true); set local role authenticated; update public.space_memberships set role='member' where space_id='$shared_space_id' and user_id='$second_user_id'; commit;" \
+  --command "begin; select set_config('request.jwt.claims', json_build_object('sub','$second_user_id','role','authenticated')::text, true); set local role authenticated; update public.space_memberships set role='member' where space_id='$shared_space_id' and user_id='$second_user_id'; commit;" \
   >"$membership_b_log" 2>&1
 owner_b_status=$?
 set -e
