@@ -83,9 +83,21 @@ begin
     jsonb_build_array(jsonb_build_object('member_user_id',ua,'amount_cents',5000),jsonb_build_object('member_user_id',ub,'amount_cents',5000)),null);
   if (select paid_by_user_id from public.shared_expenses where id=v_expense_id)<>ub then raise exception 'FAIL cambio pagatore dopo unlink'; end if; n:=n+1;
 
-  settlement_id := public.save_shared_settlement(null,sh,current_date,ub,ua,2500,'rimborso','Rimborso test',null);
-  if not exists(select 1 from public.shared_settlements where id=settlement_id and amount_cents=2500) then
-    raise exception 'FAIL salvataggio rimborso'; end if; n:=n+1;
+  settlement_id := public.save_shared_settlement(null,sh,current_date,ua,ub,10000,'rimborso','Rimborso test',tx_id);
+  if not exists(select 1 from public.shared_settlements where id=settlement_id and amount_cents=10000) then
+    raise exception 'FAIL salvataggio rimborso collegato'; end if; n:=n+1;
+
+  begin
+    perform public.save_shared_settlement(settlement_id,sh,current_date,ub,ua,10000,'rimborso','Cambio pagatore',null);
+    ok:=false;
+  exception when others then ok:=true; end;
+  if not ok then raise exception 'FAIL cambio pagatore e unlink simultanei'; end if; n:=n+1;
+
+  -- Unlink esplicito, poi cambio del pagatore in una seconda operazione.
+  perform public.save_shared_settlement(settlement_id,sh,current_date,ua,ub,10000,'rimborso','Rimborso scollegato',null);
+  perform public.save_shared_settlement(settlement_id,sh,current_date,ub,ua,10000,'rimborso','Cambio pagatore',null);
+  if (select from_user_id from public.shared_settlements where id=settlement_id)<>ub then
+    raise exception 'FAIL cambio pagatore dopo unlink esplicito'; end if; n:=n+1;
 
   execute 'reset role';
   perform set_config('request.jwt.claims',json_build_object('sub',ub,'role','authenticated','email','shared-b@test.local')::text,true);
