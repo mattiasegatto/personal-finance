@@ -4,7 +4,7 @@ do $$
 declare
   ua uuid := '00000000-0000-0000-0000-0000000000a1';
   ub uuid := '00000000-0000-0000-0000-0000000000b1';
-  sa uuid; sb uuid; acc uuid; accb uuid; inc uuid; exp uuid; expb uuid; t1 uuid; t2 uuid; cycle_cat uuid; v bigint; n int := 0; ok boolean;
+  sa uuid; sb uuid; acc uuid; accb uuid; inc uuid; exp uuid; expb uuid; t1 uuid; t2 uuid; cycle_cat uuid; guarded_account uuid; guarded_tx uuid; v bigint; n int := 0; ok boolean;
 begin
   insert into auth.users(id, instance_id, aud, role, email, raw_user_meta_data, created_at, updated_at) values
    (ua,'00000000-0000-0000-0000-000000000000','authenticated','authenticated','fa@test.local','{"display_name":"A"}',now(),now()),
@@ -72,6 +72,26 @@ begin
   exception when others then ok := true; end;
   if not ok or not exists (select 1 from public.accounts where id = acc) then raise exception 'FAIL eliminato conto con movimenti'; end if; n := n + 1;
 
+  -- Regression: temporary relations must never shadow real tables inside guards.
+  insert into public.accounts(space_id, name, initial_balance_cents)
+  values (sa, 'Conto con saldo', 0) returning id into guarded_account;
+  insert into public.transactions(space_id, account_id, category_id, direction, amount_cents, occurred_on)
+  values (sa, guarded_account, inc, 'inflow', 500, '2026-11-04') returning id into guarded_tx;
+
+  execute 'create temporary table transactions (account_id uuid, direction public.tx_direction, amount_cents bigint, deleted_at timestamptz) on commit drop';
+  execute 'create temporary table accounts (id uuid, space_id uuid, archived_at timestamptz) on commit drop';
+  execute 'create temporary table categories (id uuid, space_id uuid, archived_at timestamptz, parent_id uuid, kind public.category_kind) on commit drop';
+
+  begin
+    update public.accounts set archived_at = now() where id = guarded_account;
+    ok := false;
+  exception when others then
+    ok := true;
+  end;
+  if not ok or (select archived_at from public.accounts where id = guarded_account) is not null then
+    raise exception 'FAIL tabella temporanea transactions ha aggirato il controllo del saldo'; end if;
+  n := n + 1;
+
   -- come B
   execute 'reset role';
   perform set_config('request.jwt.claims', json_build_object('sub',ub,'role','authenticated','email','fb@test.local')::text, true);
@@ -92,6 +112,19 @@ begin
   begin insert into public.transactions(space_id, account_id, category_id, direction, amount_cents, occurred_on) values (sa,acc,exp,'outflow',100,'2026-11-03'); ok := false;
   exception when others then ok := true; end;
   if not ok then raise exception 'FAIL B scrive nello spazio di A'; end if; n := n + 1;
+
+  -- Anche account e categories temporanee non devono falsificare i controlli cross-space.
+  insert into pg_temp.accounts(id, space_id, archived_at) values (acc, sb, null);
+  insert into pg_temp.categories(id, space_id, archived_at, parent_id, kind) values (exp, sb, null, null, 'expense');
+  begin
+    insert into public.transactions(space_id, account_id, category_id, direction, amount_cents, occurred_on)
+    values (sb, acc, exp, 'outflow', 100, '2026-11-03');
+    ok := false;
+  exception when others then
+    ok := true;
+  end;
+  if not ok then raise exception 'FAIL tabelle temporanee hanno aggirato i controlli cross-space'; end if;
+  n := n + 1;
 
   -- 9 conto di un altro spazio
   begin insert into public.transactions(space_id, account_id, category_id, direction, amount_cents, occurred_on) values (sb,acc,expb,'outflow',100,'2026-11-03'); ok := false;
