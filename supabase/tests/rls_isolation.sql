@@ -92,6 +92,25 @@ select pg_temp.as_user('00000000-0000-0000-0000-00000000000c','c@test.local');
 select pg_temp.check('C rimosso non vede più lo spazio condiviso', (select count(*) from public.spaces) = 1);
 select pg_temp.check('C rimosso non vede più i profili di A e B', (select count(*) from public.profiles) = 1);
 
+-- Schema e routine: gli utenti applicativi non possono introdurre oggetti
+-- nello schema esposto e tutte le funzioni applicative hanno un search_path fisso.
+reset role;
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a','a@test.local');
+select pg_temp.check(
+  'authenticated non può creare oggetti nello schema public',
+  not has_schema_privilege('authenticated','public','CREATE')
+);
+select pg_temp.check(
+  'tutte le funzioni public hanno search_path sicuro',
+  not exists (
+    select 1
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and (p.proconfig is null or not p.proconfig @> array['search_path=pg_catalog, public, pg_temp'])
+  )
+);
+
 -- 7. Anonimo: nessun accesso
 reset role;
 set local role anon;
