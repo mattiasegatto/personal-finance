@@ -19,8 +19,11 @@ begin
 end $$;
 create or replace function pg_temp.check(_name text, _ok boolean) returns void language plpgsql as $$
 begin insert into _r values (_name, _ok); if not _ok then raise exception 'FAIL: %', _name; end if; end $$;
-create or replace function pg_temp.fails(_sql text) returns boolean language plpgsql as $$
-begin execute _sql; return false; exception when others then return true; end $$;
+create or replace function pg_temp.fails(_sql text) returns boolean language plpgsql as $
+begin execute _sql; return false; exception when others then return true; end $;
+grant execute on function pg_temp.as_user(uuid,text) to authenticated, anon;
+grant execute on function pg_temp.check(text,boolean) to authenticated, anon;
+grant execute on function pg_temp.fails(text) to authenticated, anon;
 
 -- 1. Registrazione crea profilo e spazio personale
 reset role;
