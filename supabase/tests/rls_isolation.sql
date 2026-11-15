@@ -107,6 +107,7 @@ select pg_temp.check(
     from pg_proc p
     join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public'
+      and p.prokind = 'f'
       and (p.proconfig is null or not p.proconfig @> array['search_path=pg_catalog, public, pg_temp'])
   )
 );
