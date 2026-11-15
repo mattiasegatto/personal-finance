@@ -8,6 +8,8 @@ if [[ -z "$container" ]]; then
 fi
 
 user_id="00000000-0000-0000-0000-00000000e101"
+second_user_id="00000000-0000-0000-0000-00000000e108"
+shared_space_id="00000000-0000-0000-0000-00000000e109"
 account_id="00000000-0000-0000-0000-00000000e102"
 transaction_category_id="00000000-0000-0000-0000-00000000e103"
 parent_category_id="00000000-0000-0000-0000-00000000e104"
@@ -35,6 +37,25 @@ if [[ -z "$space_id" ]]; then
   echo "The concurrency test user has no personal space."
   exit 1
 fi
+
+docker exec -i "$container" psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 <<SQL
+insert into auth.users(id, instance_id, aud, role, email, raw_user_meta_data, created_at, updated_at)
+values ('$second_user_id','00000000-0000-0000-0000-000000000000','authenticated','authenticated',
+        'concurrency-owner-b@test.local','{}',now(),now())
+on conflict (id) do nothing;
+
+insert into public.spaces(id, kind, name, created_by)
+values ('$shared_space_id', 'shared', 'Concurrent owner test', '$user_id')
+on conflict (id) do nothing;
+
+insert into public.space_memberships(space_id, user_id, role)
+values ('$shared_space_id', '$user_id', 'owner')
+on conflict (space_id, user_id) do update set role = 'owner';
+
+insert into public.space_memberships(space_id, user_id, role)
+values ('$shared_space_id', '$second_user_id', 'owner')
+on conflict (space_id, user_id) do update set role = 'owner';
+SQL
 
 docker exec -i "$container" psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 <<SQL
 insert into public.accounts(id, space_id, name, initial_balance_cents)
@@ -172,4 +193,29 @@ if [[ "$write_status" -eq 0 ]] || ! grep -q 'Categoria non valida o archiviata' 
   exit 1
 fi
 
-echo "ALL_PASSED: transaction, recurrence, deadline and child-category creation serialize with archival."
+# Two concurrent owner demotions must serialize; the second cannot remove the last owner.
+membership_a_log="$(mktemp)"
+membership_b_log="$(mktemp)"
+trap 'rm -f "$account_archive_log" "$account_write_log" "$category_archive_log" "$category_write_log" "$membership_a_log" "$membership_b_log"' EXIT
+
+docker exec "$container" psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 \
+  --command "begin; select set_config('request.jwt.claims', '{\\"sub\\":\\"$user_id\\",\\"role\\":\\"authenticated\\"}', true); set local role authenticated; update public.space_memberships set role='member' where space_id='$shared_space_id' and user_id='$user_id'; select pg_sleep(2); commit;" \
+  >"$membership_a_log" 2>&1 &
+owner_a_pid=$!
+sleep 0.25
+
+set +e
+docker exec "$container" psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 \
+  --command "begin; select set_config('request.jwt.claims', '{\\"sub\\":\\"$second_user_id\\",\\"role\\":\\"authenticated\\"}', true); set local role authenticated; update public.space_memberships set role='member' where space_id='$shared_space_id' and user_id='$second_user_id'; commit;" \
+  >"$membership_b_log" 2>&1
+owner_b_status=$?
+set -e
+wait "$owner_a_pid"
+
+if [[ "$owner_b_status" -eq 0 ]] || ! grep -q 'deve avere almeno un owner' "$membership_b_log"; then
+  cat "$membership_a_log" "$membership_b_log"
+  echo "Concurrent owner demotions left a shared space without an owner."
+  exit 1
+fi
+
+echo "ALL_PASSED: transaction, recurrence, deadline, child-category and membership writes serialize correctly."
