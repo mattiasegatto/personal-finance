@@ -102,6 +102,14 @@ begin
   exception when others then ok:=true; end;
   if not ok then raise exception 'FAIL doppio annullamento accettato'; end if; n:=n+1;
 
+  -- 7 ordinari: la categoria resta obbligatoria
+  begin
+    insert into public.transactions(space_id,account_id,category_id,direction,amount_cents,occurred_on)
+    values(sa,a1,null,'outflow',100,'2026-11-12');
+    ok:=false;
+  exception when others then ok:=true; end;
+  if not ok then raise exception 'FAIL movimento ordinario senza categoria accettato'; end if; n:=n+1;
+
   -- L'annullamento logico di un trasferimento resta consentito anche dopo
   -- l'archiviazione dei conti, come previsto dalla regola applicativa.
   insert into public.categories(space_id,kind,name) values(sa,'expense','Spesa archiviazione')
@@ -116,14 +124,6 @@ begin
   perform public.delete_transfer(arch_transfer);
   if (select deleted_at from public.transfers where id=arch_transfer) is null then
     raise exception 'FAIL annullamento trasferimento su conti archiviati'; end if; n:=n+1;
-
-  -- 7 ordinari: la categoria resta obbligatoria
-  begin
-    insert into public.transactions(space_id,account_id,category_id,direction,amount_cents,occurred_on)
-    values(sa,a1,null,'outflow',100,'2026-11-12');
-    ok:=false;
-  exception when others then ok:=true; end;
-  if not ok then raise exception 'FAIL movimento ordinario senza categoria accettato'; end if; n:=n+1;
 
   -- 8 isolamento utente B su testate, collegamenti e gambe
   execute 'reset role';
