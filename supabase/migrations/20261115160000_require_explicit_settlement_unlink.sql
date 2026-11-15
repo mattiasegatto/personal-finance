@@ -23,15 +23,15 @@ begin
     new.created_by := auth.uid();
   end if;
 
-  if not public.has_space_role(new.space_id, auth.uid(), array['owner','member']::public.space_role[]) then
-    raise exception 'Non hai i permessi per registrare rimborsi.';
-  end if;
   perform 1
   from public.spaces s
   where s.id = new.space_id and s.kind = 'shared' and s.archived_at is null
   for share;
   if not found then
     raise exception 'Il rimborso richiede uno spazio condiviso attivo.';
+  end if;
+  if not public.has_space_role(new.space_id, auth.uid(), array['owner','member']::public.space_role[]) then
+    raise exception 'Non hai i permessi per registrare rimborsi.';
   end if;
   if not exists (
     select 1 from public.space_memberships
