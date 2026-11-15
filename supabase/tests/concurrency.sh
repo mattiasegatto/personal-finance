@@ -150,7 +150,7 @@ write_status=$?
 set -e
 wait "$archive_pid"
 
-if [[ "$write_status" -eq 0 ]] || ! grep -q 'categoria archiviata' "$category_write_log"; then
+if [[ "$write_status" -eq 0 ]] || ! grep -q 'categoria padre è archiviata' "$category_write_log"; then
   cat "$category_archive_log" "$category_write_log"
   echo "Concurrent child-category creation was not rejected after parent archival."
   exit 1
