@@ -3,7 +3,7 @@ do $$
 declare
   ua uuid := '00000000-0000-0000-0000-0000000000a1';
   ub uuid := '00000000-0000-0000-0000-0000000000b1';
-  sa uuid; sb uuid; sh uuid; cat_id uuid; parent_cat uuid; personal_cat uuid; account_id uuid;
+  sa uuid; sb uuid; sh uuid; cat_id uuid; parent_cat uuid; active_cat uuid; personal_cat uuid; account_id uuid;
   tx_id uuid; v_expense_id uuid; settlement_id uuid; ok boolean; n int := 0;
 begin
   insert into auth.users(id, instance_id, aud, role, email, raw_user_meta_data, created_at, updated_at) values
@@ -126,10 +126,13 @@ begin
   exception when others then ok:=true; end;
   if not ok then raise exception 'FAIL creazione figlia sotto categoria padre archiviata'; end if; n:=n+1;
 
+  insert into public.categories(space_id,kind,name)
+  values(sh,'expense','Categoria attiva test archivio') returning id into active_cat;
+
   -- An archived shared space is read-only: no new expense, settlement or category.
   update public.spaces set archived_at=now() where id=sh;
   begin
-    perform public.save_shared_expense(null,sh,current_date,'Spazio archiviato',cat_id,100,ua,'equal',
+    perform public.save_shared_expense(null,sh,current_date,'Spazio archiviato',active_cat,100,ua,'equal',
       jsonb_build_array(jsonb_build_object('member_user_id',ua,'amount_cents',100)),null);
     ok:=false;
   exception when others then ok:=true; end;
