@@ -300,4 +300,120 @@ if [[ "$shared_write_status" -eq 0 ]] || ! grep -q 'Non hai i permessi per modif
   exit 1
 fi
 
-echo "ALL_PASSED: transaction, recurrence, deadline, category, membership and shared-write concurrency checks passed."
+
+# Invitation acceptance must lock an existing membership before it locks the
+# space. Otherwise acceptance (space -> membership) can deadlock with a role
+# update (membership -> space).
+fourth_user_id="00000000-0000-0000-0000-00000000e112"
+fifth_user_id="00000000-0000-0000-0000-00000000e113"
+fourth_email="concurrency-accept@test.local"
+fifth_email="concurrency-invite@test.local"
+
+docker exec -i "$container" psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 <<SQL
+insert into auth.users(id, instance_id, aud, role, email, raw_user_meta_data, created_at, updated_at)
+values ('$fourth_user_id','00000000-0000-0000-0000-000000000000','authenticated','authenticated',
+        '$fourth_email','{}',now(),now()),
+       ('$fifth_user_id','00000000-0000-0000-0000-000000000000','authenticated','authenticated',
+        '$fifth_email','{}',now(),now())
+on conflict (id) do nothing;
+
+insert into public.space_invitations(space_id,email,role,invited_by)
+values ('$shared_space_id','$fourth_email','member','$second_user_id');
+
+-- Simulate a membership created through another authorized path while its
+-- invitation is pending; acceptance must serialize with its concurrent update.
+insert into public.space_memberships(space_id,user_id,role)
+values ('$shared_space_id','$fourth_user_id','member')
+on conflict (space_id,user_id) do nothing;
+
+create or replace function public.test_pause_invitation_membership_insert()
+returns trigger language plpgsql set search_path = pg_catalog, public, pg_temp as $
+begin
+  if new.user_id = '$fourth_user_id'::uuid then
+    perform pg_sleep(2);
+  end if;
+  return new;
+end;
+$;
+create trigger z_test_pause_invitation_membership_insert
+before insert on public.space_memberships
+for each row execute function public.test_pause_invitation_membership_insert();
+SQL
+
+accept_membership_log="$(mktemp)"
+update_membership_log="$(mktemp)"
+trap 'rm -f "$account_archive_log" "$account_write_log" "$category_archive_log" "$category_write_log" "$membership_a_log" "$membership_b_log" "$shared_write_log" "$member_remove_log" "$accept_membership_log" "$update_membership_log"' EXIT
+
+accept_invitation_id="$(docker exec "$container" psql --username postgres --dbname postgres --tuples-only --no-align \
+  --command "select id from public.space_invitations where space_id='$shared_space_id' and email='$fourth_email' and status='pending' limit 1")"
+
+docker exec "$container" psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 \
+  --command "begin; select set_config('request.jwt.claims', json_build_object('sub','$fourth_user_id','email','$fourth_email','role','authenticated')::text, true); set local role authenticated; select public.accept_invitation('$accept_invitation_id'); commit;" \
+  >"$accept_membership_log" 2>&1 &
+accept_pid=$!
+sleep 0.3
+
+set +e
+docker exec "$container" psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 \
+  --command "begin; select set_config('request.jwt.claims', json_build_object('sub','$second_user_id','email','concurrency-owner-b@test.local','role','authenticated')::text, true); set local role authenticated; update public.space_memberships set role='viewer' where space_id='$shared_space_id' and user_id='$fourth_user_id'; commit;" \
+  >"$update_membership_log" 2>&1
+membership_update_status=$?
+wait "$accept_pid"
+accept_status=$?
+set -e
+
+if [[ "$accept_status" -ne 0 || "$membership_update_status" -ne 0 ]]; then
+  cat "$accept_membership_log" "$update_membership_log"
+  echo "Invitation acceptance deadlocked with a concurrent membership update."
+  exit 1
+fi
+
+accepted_status="$(docker exec "$container" psql --username postgres --dbname postgres --tuples-only --no-align \
+  --command "select status from public.space_invitations where id='$accept_invitation_id'")"
+accepted_role="$(docker exec "$container" psql --username postgres --dbname postgres --tuples-only --no-align \
+  --command "select role from public.space_memberships where space_id='$shared_space_id' and user_id='$fourth_user_id'")"
+if [[ "$accepted_status" != "accepted" || "$accepted_role" != "viewer" ]]; then
+  cat "$accept_membership_log" "$update_membership_log"
+  echo "Invitation acceptance/membership update did not preserve the expected final state."
+  exit 1
+fi
+
+docker exec -i "$container" psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 <<SQL
+drop trigger z_test_pause_invitation_membership_insert on public.space_memberships;
+drop function public.test_pause_invitation_membership_insert();
+insert into public.space_invitations(space_id,email,role,invited_by)
+values ('$shared_space_id','$fifth_email','member','$second_user_id');
+SQL
+
+# The second race checks the shared advisory lock: acceptance has the invite
+# row first and pauses before taking the space lock while the owner retries it.
+accept_invite_lock_log="$(mktemp)"
+duplicate_invite_log="$(mktemp)"
+trap 'rm -f "$account_archive_log" "$account_write_log" "$category_archive_log" "$category_write_log" "$membership_a_log" "$membership_b_log" "$shared_write_log" "$member_remove_log" "$accept_membership_log" "$update_membership_log" "$accept_invite_lock_log" "$duplicate_invite_log"' EXIT
+
+fifth_invitation_id="$(docker exec "$container" psql --username postgres --dbname postgres --tuples-only --no-align \
+  --command "select id from public.space_invitations where space_id='$shared_space_id' and email='$fifth_email' and status='pending' limit 1")"
+
+docker exec "$container" psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 \
+  --command "begin; select pg_advisory_xact_lock(hashtextextended('$shared_space_id' || ':' || '$fifth_email',0)); select id from public.space_invitations where id='$fifth_invitation_id' for update; select pg_sleep(2); select id from public.spaces where id='$shared_space_id' for update; insert into public.space_memberships(space_id,user_id,role) values ('$shared_space_id','$fifth_user_id','member') on conflict (space_id,user_id) do nothing; update public.space_invitations set status='accepted' where id='$fifth_invitation_id'; commit;" \
+  >"$accept_invite_lock_log" 2>&1 &
+manual_accept_pid=$!
+sleep 0.3
+
+set +e
+docker exec "$container" psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 \
+  --command "begin; select set_config('request.jwt.claims', json_build_object('sub','$second_user_id','email','concurrency-owner-b@test.local','role','authenticated')::text, true); set local role authenticated; select public.invite_to_space('$shared_space_id','$fifth_email','member'); commit;" \
+  >"$duplicate_invite_log" 2>&1
+duplicate_invite_status=$?
+wait "$manual_accept_pid"
+manual_accept_status=$?
+set -e
+
+if [[ "$manual_accept_status" -ne 0 || "$duplicate_invite_status" -eq 0 ]] \
+  || ! grep -q 'L’utente è già membro dello spazio' "$duplicate_invite_log"; then
+  cat "$accept_invite_lock_log" "$duplicate_invite_log"
+  echo "Concurrent invitation creation/acceptance did not serialize safely."
+  exit 1
+fi
+
+echo "ALL_PASSED: transaction, recurrence, deadline, category, membership, invitation and shared-write concurrency checks passed."

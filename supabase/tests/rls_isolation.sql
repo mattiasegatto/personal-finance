@@ -37,6 +37,7 @@ create temp table _ids as select public.create_shared_space('Casa test') as sid;
 select public.invite_to_space((select sid from _ids), 'b@test.local', 'member');
 select public.invite_to_space((select sid from _ids), 'c@test.local', 'viewer');
 select public.invite_to_space((select sid from _ids), 'd@test.local', 'member');
+select pg_temp.check('owner non crea un secondo invito pendente', pg_temp.fails($q$select public.invite_to_space((select sid from _ids),'d@test.local','member')$q$));
 select public.invite_to_space((select sid from _ids), 'z@test.local', 'member');
 select pg_temp.check('owner non modifica i dati identificativi di un invito', pg_temp.fails($q$update public.space_invitations set email='changed@test.local' where email='z@test.local'$q$));
 update public.space_invitations set status='revoked' where email='z@test.local';
@@ -58,6 +59,9 @@ select pg_temp.check('B non può interrogare il ruolo di A', not public.has_spac
 select pg_temp.check('B non può interrogare le relazioni tra terzi', not public.shares_shared_space('00000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-00000000000c'));
 select pg_temp.check('B non può accettare invito altrui', pg_temp.fails($$select public.accept_invitation((select id from public.space_invitations where email='c@test.local'))$$) );
 select public.accept_invitation((select id from public.space_invitations where email='b@test.local'));
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a','a@test.local');
+select pg_temp.check('owner non reinvita un membro esistente', pg_temp.fails($q$select public.invite_to_space((select sid from _ids),'b@test.local','member')$q$));
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b','b@test.local');
 select pg_temp.check('B ora vede personale + condiviso', (select count(*) from public.spaces) = 2);
 select pg_temp.check('B NON vede lo spazio personale di A', (select count(*) from public.spaces where kind='personal' and created_by='00000000-0000-0000-0000-00000000000a') = 0);
 select pg_temp.check('B NON vede le appartenenze personali di A', (select count(*) from public.space_memberships where user_id='00000000-0000-0000-0000-00000000000a') = 1);
@@ -178,6 +182,11 @@ select pg_temp.check(
         or has_table_privilege('anon', c.oid, 'TRIGGER')
       )
   )
+);
+select pg_temp.check(
+  'category_root_kind è eseguibile solo dagli autenticati',
+  has_function_privilege('authenticated','public.category_root_kind(uuid)','EXECUTE')
+  and not has_function_privilege('anon','public.category_root_kind(uuid)','EXECUTE')
 );
 select pg_temp.check(
   'authenticated non può eseguire TRUNCATE',
