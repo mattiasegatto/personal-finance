@@ -326,15 +326,17 @@ insert into public.space_memberships(space_id,user_id,role)
 values ('$shared_space_id','$fourth_user_id','member')
 on conflict (space_id,user_id) do nothing;
 
+-- The function body uses an escaped dollar-quote tag: inside this unquoted
+-- heredoc a bare \$\$ would expand to the shell PID.
 create or replace function public.test_pause_invitation_membership_insert()
-returns trigger language plpgsql set search_path = pg_catalog, public, pg_temp as $
+returns trigger language plpgsql set search_path = pg_catalog, public, pg_temp as \$fn\$
 begin
   if new.user_id = '$fourth_user_id'::uuid then
     perform pg_sleep(2);
   end if;
   return new;
 end;
-$;
+\$fn\$;
 create trigger z_test_pause_invitation_membership_insert
 before insert on public.space_memberships
 for each row execute function public.test_pause_invitation_membership_insert();
