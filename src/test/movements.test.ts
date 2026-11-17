@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { buildMovementList, movementTotals } from "@/lib/movements";
+import {
+  ALL_MOVEMENTS,
+  buildMovementList,
+  movementFilterFromSelection,
+  movementTotals,
+} from "@/lib/movements";
 
 const transactions = [
   {
     id: "income",
+    operation_type: "ordinary" as const,
     account_id: "checking",
     direction: "inflow" as const,
     category_id: "salary",
@@ -15,6 +21,7 @@ const transactions = [
   },
   {
     id: "expense",
+    operation_type: "ordinary" as const,
     account_id: "checking",
     direction: "outflow" as const,
     category_id: "food",
@@ -77,5 +84,67 @@ describe("buildMovementList", () => {
   it("calcola entrate e uscite senza includere i trasferimenti", () => {
     const rows = buildMovementList(transactions, transfers, categories);
     expect(movementTotals(rows)).toEqual({ inflow: 250000, outflow: 12500 });
+  });
+});
+
+describe("movementFilterFromSelection", () => {
+  const all = {
+    account: ALL_MOVEMENTS,
+    direction: ALL_MOVEMENTS,
+    category: ALL_MOVEMENTS,
+    from: "",
+    to: "",
+    query: "",
+  };
+
+  it("con tutti i filtri su 'tutti' mostra movimenti e trasferimenti", () => {
+    // Regressione: il valore "tutte le categorie" dell'interfaccia escludeva ogni movimento.
+    const rows = buildMovementList(
+      transactions,
+      transfers,
+      categories,
+      movementFilterFromSelection(all),
+    );
+    expect(rows).toHaveLength(transactions.length + transfers.length);
+  });
+
+  it("applica i filtri specifici scelti nell'interfaccia", () => {
+    const rows = buildMovementList(
+      transactions,
+      transfers,
+      categories,
+      movementFilterFromSelection({ ...all, direction: "outflow" }),
+    );
+    expect(rows.map((r) => r.data.id)).toEqual(["expense"]);
+  });
+});
+
+describe("buildMovementList con trasferimenti", () => {
+  it("non elenca le gambe dei trasferimenti come movimenti ordinari", () => {
+    // Regressione: le due gambe comparivano accanto al trasferimento e gonfiavano i totali.
+    const legs = [
+      {
+        ...transactions[0]!,
+        id: "leg-out",
+        operation_type: "transfer" as const,
+        direction: "outflow" as const,
+        category_id: null,
+        categoryLabel: "—",
+      },
+      {
+        ...transactions[0]!,
+        id: "leg-in",
+        operation_type: "transfer" as const,
+        direction: "inflow" as const,
+        category_id: null,
+        categoryLabel: "—",
+      },
+    ];
+    const rows = buildMovementList([...transactions, ...legs], transfers, categories);
+    expect(rows.map((r) => r.data.id)).not.toContain("leg-out");
+    expect(rows.map((r) => r.data.id)).not.toContain("leg-in");
+    expect(movementTotals(rows)).toEqual(
+      movementTotals(buildMovementList(transactions, transfers, categories)),
+    );
   });
 });

@@ -31,7 +31,12 @@ import {
   parseCents,
   type Direction,
 } from "@/lib/finance";
-import { buildMovementList, movementTotals } from "@/lib/movements";
+import {
+  ALL_MOVEMENTS,
+  buildMovementList,
+  movementFilterFromSelection,
+  movementTotals,
+} from "@/lib/movements";
 
 export const Route = createFileRoute("/_authenticated/movimenti")({
   head: () => ({
@@ -56,7 +61,7 @@ export const Route = createFileRoute("/_authenticated/movimenti")({
 
 type Fin = Awaited<ReturnType<NonNullable<typeof financeQuery.queryFn>>>;
 type Tx = Fin["transactions"][number];
-const ALL = "__all";
+const ALL = ALL_MOVEMENTS;
 
 function Transactions() {
   const { data } = useSuspenseQuery(financeQuery);
@@ -74,14 +79,19 @@ function Transactions() {
   const [to, setTo] = useState("");
   const accName = (id: string) => data.accounts.find((a) => a.id === id)?.name ?? "—";
 
-  const list = buildMovementList(data.transactions, data.transfers, data.categories, {
-    accountId: acc === ALL ? undefined : acc,
-    direction: dir === ALL ? "all" : dir,
-    categoryId: cat,
-    from,
-    to,
-    query: q,
-  });
+  const list = buildMovementList(
+    data.transactions,
+    data.transfers,
+    data.categories,
+    movementFilterFromSelection({
+      account: acc,
+      direction: dir,
+      category: cat,
+      from,
+      to,
+      query: q,
+    }),
+  );
   const { inflow, outflow } = movementTotals(list);
   const remove = async (t: Tx) => {
     if (
@@ -350,7 +360,7 @@ function TxDialog({
   const [busy, setBusy] = useState(false);
   const want = direction === "inflow" ? "income" : "expense";
   const cats = data.categories.filter(
-    (c) => c.rootKind === want && (!c.archived_at || c.id === tx?.category_id),
+    (c) => c.rootKind === want && (c.usable || c.id === tx?.category_id),
   );
 
   const submit = async (e: FormEvent) => {

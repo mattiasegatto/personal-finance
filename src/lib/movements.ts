@@ -2,6 +2,8 @@ import type { Direction } from "@/lib/finance";
 
 type OrdinaryMovement = {
   id: string;
+  /** Only ordinary movements are listed; transfer legs are shown through their transfer. */
+  operation_type: "ordinary" | "transfer";
   account_id: string;
   direction: Direction;
   category_id: string | null;
@@ -29,6 +31,30 @@ type MovementFilter = {
   to?: string;
   query?: string;
 };
+/** Valore usato dai filtri dell'interfaccia per "tutti" (conti, direzioni, categorie). */
+export const ALL_MOVEMENTS = "__all";
+
+export type MovementSelection = {
+  account: string;
+  direction: string;
+  category: string;
+  from: string;
+  to: string;
+  query: string;
+};
+
+/** Traduce lo stato dei filtri dell'interfaccia nel filtro di buildMovementList. */
+export function movementFilterFromSelection(selection: MovementSelection): MovementFilter {
+  return {
+    ...(selection.account !== ALL_MOVEMENTS && { accountId: selection.account }),
+    direction: selection.direction === ALL_MOVEMENTS ? "all" : (selection.direction as Direction),
+    categoryId: selection.category === ALL_MOVEMENTS ? "all" : selection.category,
+    from: selection.from,
+    to: selection.to,
+    query: selection.query,
+  };
+}
+
 export type MovementRow =
   { kind: "ordinary"; data: OrdinaryMovement } | { kind: "transfer"; data: TransferMovement };
 
@@ -43,6 +69,7 @@ export function buildMovementList(
   const ordinary: MovementRow[] = transactions
     .filter(
       (t) =>
+        t.operation_type === "ordinary" &&
         (!accountId || t.account_id === accountId) &&
         (direction === "all" || t.direction === direction) &&
         (categoryId === "all" ||

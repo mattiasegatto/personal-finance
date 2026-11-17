@@ -24,10 +24,15 @@ export function localDateISO(date = new Date()): string {
   return `${year}-${month}-${day}`;
 }
 
-/** Converte "12,34" o "12.34" in centesimi interi; null se non valido. */
+/**
+ * Converte "12,34", "1.250,00", "2.000" o "12.34" in centesimi interi; null se non valido.
+ * Senza virgola, i punti seguiti da gruppi di tre cifre ("2.000", "1.250.000") sono
+ * separatori delle migliaia; altrimenti il punto è il separatore decimale ("12.5").
+ */
 export function parseCents(input: string, allowNegative = false): number | null {
   let s = input.trim().replace(/\s|€/g, "");
   if (s.includes(",")) s = s.replace(/\./g, "").replace(",", ".");
+  else if (/^-?\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, "");
   if (!/^-?\d+(\.\d{1,2})?$/.test(s)) return null;
   const c = Math.round(Number(s) * 100);
   if (!allowNegative && c < 0) return null;
@@ -50,6 +55,21 @@ async function personalSpaceId() {
     .single();
   if (error) throw error;
   return data.id;
+}
+
+type CategoryNode = { id: string; parent_id: string | null; archived_at: string | null };
+
+/**
+ * Una categoria è utilizzabile per nuovi movimenti, ricorrenze e scadenze solo se né lei
+ * né la categoria padre sono archiviate (il database rifiuta comunque gli altri casi).
+ */
+export function isCategoryUsable(
+  category: CategoryNode,
+  byId: ReadonlyMap<string, CategoryNode>,
+): boolean {
+  if (category.archived_at) return false;
+  const parent = category.parent_id ? byId.get(category.parent_id) : undefined;
+  return !parent?.archived_at;
 }
 
 /** Dati finanziari dello spazio personale: la RLS restituisce solo ciò che appartiene all'utente. */
@@ -105,6 +125,7 @@ export const financeQuery = queryOptions({
         ...x,
         label: catLabel(x.id),
         rootKind: rootKind(x.id),
+        usable: isCategoryUsable(x, byId),
       })),
       transactions: (t.data ?? []).map((x) => ({
         ...x,

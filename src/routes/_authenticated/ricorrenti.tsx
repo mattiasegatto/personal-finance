@@ -89,7 +89,7 @@ function Recurring() {
     void load();
   }, [load]);
   const activeAccounts = data.accounts.filter((a) => !a.archived_at);
-  const activeCategories = data.categories.filter((c) => !c.archived_at);
+  const activeCategories = data.categories.filter((c) => c.usable);
   const accountName = (id: string) => data.accounts.find((a) => a.id === id)?.name ?? "—";
   const categoryName = (id: string) => data.categories.find((c) => c.id === id)?.label ?? "—";
   const act = async (item: Recurrence, confirm: boolean) => {
@@ -232,7 +232,7 @@ function RecurringDialog({
   const [direction, setDirection] = useState<Direction>("outflow");
   const [account, setAccount] = useState(data.accounts.find((a) => !a.archived_at)?.id ?? "");
   const cats = data.categories.filter(
-    (c) => !c.archived_at && c.rootKind === (direction === "inflow" ? "income" : "expense"),
+    (c) => c.usable && c.rootKind === (direction === "inflow" ? "income" : "expense"),
   );
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");

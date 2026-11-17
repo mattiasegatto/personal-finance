@@ -113,8 +113,7 @@ function Deadlines() {
         <Button
           onClick={() => setDialog(true)}
           disabled={
-            !data.accounts.some((a) => !a.archived_at) ||
-            !data.categories.some((c) => !c.archived_at)
+            !data.accounts.some((a) => !a.archived_at) || !data.categories.some((c) => c.usable)
           }
         >
           <Plus className="h-4 w-4" />
@@ -255,7 +254,7 @@ function DeadlineDialog({
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const categories = data.categories.filter(
-    (c) => !c.archived_at && c.rootKind === (direction === "inflow" ? "income" : "expense"),
+    (c) => c.usable && c.rootKind === (direction === "inflow" ? "income" : "expense"),
   );
   const submit = async (e: FormEvent) => {
     e.preventDefault();
