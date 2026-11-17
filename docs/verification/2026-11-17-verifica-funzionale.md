@@ -33,8 +33,8 @@ Isolamento verificato: B e C non vedono conti, movimenti, investimenti o debiti 
 ## Da decidere (richiedono una scelta di prodotto)
 
 1. **Categorie dello spazio condiviso — bloccante.** Il database richiede che una spesa condivisa usi una categoria di spesa _dello stesso spazio condiviso_, ma la pagina Categorie gestisce solo lo spazio personale e la funzione `create_starter_categories` fallisce sugli spazi condivisi (crea anche categorie di entrata). Il documento di progetto parla invece di "sistema unico di categorie, non duplicato tra personale e condiviso". Opzioni: (a) categorie per spazio, con gestione nella pagina Categorie e set iniziale di sole spese alla creazione dello spazio; (b) categorie condivise uniche, che richiede di cambiare il modello dati.
-2. **"Rinvia" nelle ricorrenze salta l'occorrenza.** Avanza alla data successiva senza registrare nulla (es. lo stipendio di dicembre sparisce dal piano). Rinominare in "Salta" con conferma, oppure implementare un vero rinvio a una data scelta.
-3. **Revoca degli inviti in attesa.** Il database la consente all'owner, l'interfaccia non la offre. Un invito con ruolo sbagliato oggi non si può correggere dall'app.
+2. **"Rinvia" nelle ricorrenze salta l'occorrenza.** Avanza alla data successiva senza registrare nulla. _Deciso:_ rinominato "Salta", con richiesta di conferma.
+3. **Revoca degli inviti in attesa.** _Rettifica:_ il pulsante esisteva già (icona "X" senza testo) ed era sfuggito alla verifica. Ora mostra anche la scritta "Revoca".
 
 ## Osservazioni minori
 

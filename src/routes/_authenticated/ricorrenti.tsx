@@ -93,6 +93,13 @@ function Recurring() {
   const accountName = (id: string) => data.accounts.find((a) => a.id === id)?.name ?? "—";
   const categoryName = (id: string) => data.categories.find((c) => c.id === id)?.label ?? "—";
   const act = async (item: Recurrence, confirm: boolean) => {
+    if (
+      !confirm &&
+      !window.confirm(
+        `Saltare l'occorrenza del ${new Date(`${item.next_due_on}T00:00:00`).toLocaleDateString("it-IT")} di "${item.description}"? Non verrà registrato alcun movimento e la ricorrenza passerà alla data successiva.`,
+      )
+    )
+      return;
     const result = confirm
       ? await supabase.rpc("confirm_recurring_item", {
           _id: item.id,
@@ -104,7 +111,7 @@ function Recurring() {
         });
     if (result.error) toast.error(errMsg(result.error));
     else {
-      toast.success(confirm ? "Movimento registrato" : "Scadenza rinviata");
+      toast.success(confirm ? "Movimento registrato" : "Occorrenza saltata");
       await refresh();
     }
   };
@@ -193,7 +200,7 @@ function Recurring() {
                         onClick={() => void act(item, false)}
                         disabled={!item.active}
                       >
-                        Rinvia
+                        Salta
                       </Button>
                       <Button size="sm" variant="ghost" onClick={() => void toggle(item)}>
                         {item.active ? "Disattiva" : "Riattiva"}

@@ -236,7 +236,7 @@ function SpaceCard({
                         In attesa: {i.email} · {roleLabel[i.role]}
                       </span>
                       <Button
-                        size="icon"
+                        size="sm"
                         variant="ghost"
                         aria-label={`Revoca invito a ${i.email}`}
                         onClick={run(
@@ -249,6 +249,7 @@ function SpaceCard({
                         )}
                       >
                         <X className="h-4 w-4" />
+                        Revoca
                       </Button>
                     </li>
                   ))}
