@@ -98,11 +98,13 @@ values ('$deadline_category_id', '$space_id', 'expense', 'Concurrency deadline c
 on conflict (id) do nothing;
 SQL
 
-account_archive_log="$(mktemp)"
-account_write_log="$(mktemp)"
-category_archive_log="$(mktemp)"
-category_write_log="$(mktemp)"
-trap 'rm -f "$account_archive_log" "$account_write_log" "$category_archive_log" "$category_write_log"' EXIT
+tmp_dir="$(mktemp -d)"
+trap 'rm -rf "$tmp_dir"' EXIT
+
+account_archive_log="$(mktemp -p "$tmp_dir")"
+account_write_log="$(mktemp -p "$tmp_dir")"
+category_archive_log="$(mktemp -p "$tmp_dir")"
+category_write_log="$(mktemp -p "$tmp_dir")"
 
 # Session A holds the account row lock while session B attempts to create a movement.
 docker exec "$container" psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 \
@@ -209,9 +211,8 @@ if [[ "$write_status" -eq 0 ]] || ! grep -q 'Categoria non valida o archiviata' 
 fi
 
 # A former owner must not retain authority from an RLS snapshot after waiting on the space lock.
-former_owner_log="$(mktemp)"
-remove_owner_log="$(mktemp)"
-trap 'rm -f "$account_archive_log" "$account_write_log" "$category_archive_log" "$category_write_log" "$former_owner_log" "$remove_owner_log"' EXIT
+former_owner_log="$(mktemp -p "$tmp_dir")"
+remove_owner_log="$(mktemp -p "$tmp_dir")"
 
 docker exec "$container" psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 \
   --command "begin; select set_config('request.jwt.claims', json_build_object('sub','$second_user_id','role','authenticated')::text, true); set local role authenticated; delete from public.space_memberships where space_id='$shared_space_id' and user_id='$user_id'; select pg_sleep(2); commit;" \
@@ -251,9 +252,8 @@ docker exec "$container" psql --username postgres --dbname postgres --set ON_ERR
   --command "insert into public.space_memberships(space_id,user_id,role) values ('$shared_space_id','$user_id','owner') on conflict (space_id,user_id) do update set role='owner';"
 
 # Two concurrent owner demotions must serialize; the second cannot remove the last owner.
-membership_a_log="$(mktemp)"
-membership_b_log="$(mktemp)"
-trap 'rm -f "$account_archive_log" "$account_write_log" "$category_archive_log" "$category_write_log" "$membership_a_log" "$membership_b_log"' EXIT
+membership_a_log="$(mktemp -p "$tmp_dir")"
+membership_b_log="$(mktemp -p "$tmp_dir")"
 
 docker exec "$container" psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 \
   --command "begin; select set_config('request.jwt.claims', json_build_object('sub','$user_id','role','authenticated')::text, true); set local role authenticated; update public.space_memberships set role='member' where space_id='$shared_space_id' and user_id='$user_id'; select pg_sleep(2); commit;" \
@@ -276,9 +276,8 @@ if [[ "$owner_b_status" -eq 0 ]] || ! grep -q 'deve avere almeno un owner' "$mem
 fi
 
 # A member removed while an expense RPC is waiting for the space lock must not write afterward.
-shared_write_log="$(mktemp)"
-member_remove_log="$(mktemp)"
-trap 'rm -f "$account_archive_log" "$account_write_log" "$category_archive_log" "$category_write_log" "$membership_a_log" "$membership_b_log" "$shared_write_log" "$member_remove_log"' EXIT
+shared_write_log="$(mktemp -p "$tmp_dir")"
+member_remove_log="$(mktemp -p "$tmp_dir")"
 
 docker exec "$container" psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 \
   --command "begin; select set_config('request.jwt.claims', json_build_object('sub','$second_user_id','role','authenticated')::text, true); set local role authenticated; delete from public.space_memberships where space_id='$shared_space_id' and user_id='$user_id'; select pg_sleep(2); commit;" \
@@ -327,22 +326,22 @@ values ('$shared_space_id','$fourth_user_id','member')
 on conflict (space_id,user_id) do nothing;
 
 create or replace function public.test_pause_invitation_membership_insert()
-returns trigger language plpgsql set search_path = pg_catalog, public, pg_temp as $
+returns trigger language plpgsql set search_path = pg_catalog, public, pg_temp as \$\$
 begin
   if new.user_id = '$fourth_user_id'::uuid then
     perform pg_sleep(2);
   end if;
   return new;
 end;
-$;
+\$\$;
+drop trigger if exists z_test_pause_invitation_membership_insert on public.space_memberships;
 create trigger z_test_pause_invitation_membership_insert
 before insert on public.space_memberships
 for each row execute function public.test_pause_invitation_membership_insert();
 SQL
 
-accept_membership_log="$(mktemp)"
-update_membership_log="$(mktemp)"
-trap 'rm -f "$account_archive_log" "$account_write_log" "$category_archive_log" "$category_write_log" "$membership_a_log" "$membership_b_log" "$shared_write_log" "$member_remove_log" "$accept_membership_log" "$update_membership_log"' EXIT
+accept_membership_log="$(mktemp -p "$tmp_dir")"
+update_membership_log="$(mktemp -p "$tmp_dir")"
 
 accept_invitation_id="$(docker exec "$container" psql --username postgres --dbname postgres --tuples-only --no-align \
   --command "select id from public.space_invitations where space_id='$shared_space_id' and email='$fourth_email' and status='pending' limit 1")"
@@ -387,9 +386,8 @@ SQL
 
 # The second race checks the shared advisory lock: acceptance has the invite
 # row first and pauses before taking the space lock while the owner retries it.
-accept_invite_lock_log="$(mktemp)"
-duplicate_invite_log="$(mktemp)"
-trap 'rm -f "$account_archive_log" "$account_write_log" "$category_archive_log" "$category_write_log" "$membership_a_log" "$membership_b_log" "$shared_write_log" "$member_remove_log" "$accept_membership_log" "$update_membership_log" "$accept_invite_lock_log" "$duplicate_invite_log"' EXIT
+accept_invite_lock_log="$(mktemp -p "$tmp_dir")"
+duplicate_invite_log="$(mktemp -p "$tmp_dir")"
 
 fifth_invitation_id="$(docker exec "$container" psql --username postgres --dbname postgres --tuples-only --no-align \
   --command "select id from public.space_invitations where space_id='$shared_space_id' and email='$fifth_email' and status='pending' limit 1")"
