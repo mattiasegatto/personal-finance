@@ -30,9 +30,9 @@ Isolamento verificato: B e C non vedono conti, movimenti, investimenti o debiti 
 4. **Categorie non utilizzabili proposte nei moduli.** Le sottocategorie di un padre archiviato erano selezionabili in movimenti, ricorrenze e scadenze, poi rifiutate dal database.
 5. **"Annulla" sulle scadenze senza conferma.** L'azione è irreversibile; ora chiede conferma e l'etichetta è "Annulla scadenza".
 
-## Da decidere (richiedono una scelta di prodotto)
+## Decisioni di prodotto (prese il 17/11/2026)
 
-1. **Categorie dello spazio condiviso — bloccante.** Il database richiede che una spesa condivisa usi una categoria di spesa _dello stesso spazio condiviso_, ma la pagina Categorie gestisce solo lo spazio personale e la funzione `create_starter_categories` fallisce sugli spazi condivisi (crea anche categorie di entrata). Il documento di progetto parla invece di "sistema unico di categorie, non duplicato tra personale e condiviso". Opzioni: (a) categorie per spazio, con gestione nella pagina Categorie e set iniziale di sole spese alla creazione dello spazio; (b) categorie condivise uniche, che richiede di cambiare il modello dati.
+1. **Categorie dello spazio condiviso — bloccante.** Nessuna pagina permetteva di creare le categorie richieste dalle spese condivise. _Deciso:_ categorie fisse e uguali per ogni spazio (migrazione `20261117100000_fixed_category_set.sql`): ogni spazio riceve automaticamente il set predefinito (gli spazi condivisi solo le spese), i client non possono modificarle e la pagina Categorie è in sola lettura. Verificato sullo stack locale con dati preesistenti: spesa condivisa registrata dall'app.
 2. **"Rinvia" nelle ricorrenze salta l'occorrenza.** Avanza alla data successiva senza registrare nulla. _Deciso:_ rinominato "Salta", con richiesta di conferma.
 3. **Revoca degli inviti in attesa.** _Rettifica:_ il pulsante esisteva già (icona "X" senza testo) ed era sfuggito alla verifica. Ora mostra anche la scritta "Revoca".
 
