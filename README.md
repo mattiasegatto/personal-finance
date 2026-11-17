@@ -23,28 +23,59 @@ L'applicazione è autonoma rispetto a qualsiasi specifico ambiente di sviluppo o
 
 ## Configurazione locale
 
-Prerequisiti: Bun, Docker e Supabase CLI.
+Prerequisiti: Git, Docker, Bun **e Node.js LTS**. La Supabase CLI si usa con `bunx`, alla stessa versione fissata nella CI (3.1.0).
 
-1. Clona il repository e installa le dipendenze:
+Node.js è necessario anche se si usa Bun: il plugin Cloudflare per Vite avvia Miniflare, che sotto il runtime Bun fallisce con `ECONNREFUSED`. Con Node.js installato, `bun run dev` esegue Vite con Node.
+
+1. Clona il branch di sviluppo e installa le dipendenze:
 
    ```sh
+   git clone -b migration/standalone-stack https://github.com/mattiasegatto/personal-finance.git
+   cd personal-finance
    bun install --frozen-lockfile
    ```
 
-2. Crea il file `.env` partendo da `.env.example` e configura le variabili richieste. Non condividere né versionare il file `.env`.
-
-3. Avvia lo stack Supabase locale e ricrea il database:
+2. Avvia lo stack Supabase locale (con Docker in esecuzione) e ricrea il database dalle migrazioni:
 
    ```sh
-   supabase start
-   supabase db reset
+   bunx supabase@3.1.0 start
+   bunx supabase@3.1.0 db reset
    ```
 
-4. Avvia l'applicazione:
+3. Crea `.env.local` con l'URL e la chiave _publishable_ stampati da `supabase start` (chiavi locali di sviluppo, mai quelle di produzione). Il file è escluso da git.
+
+   ```sh
+   VITE_SUPABASE_URL=http://127.0.0.1:54321
+   VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+   SUPABASE_URL=http://127.0.0.1:54321
+   SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+   ```
+
+   Se il browser non può raggiungere un'altra porta locale (ad esempio un browser integrato che blocca le richieste verso origini diverse), attiva il proxy di sviluppo di Vite: il browser parla solo con la porta 5173 e Vite inoltra a Supabase.
+
+   ```sh
+   SUPABASE_DEV_PROXY_TARGET=http://127.0.0.1:54321
+   VITE_SUPABASE_URL=http://localhost:5173/__supabase
+   ```
+
+4. Avvia l'applicazione su http://localhost:5173 (dopo ogni modifica a `.env.local` riavviala):
 
    ```sh
    bun run dev
    ```
+
+### Windows
+
+Installazione dei prerequisiti da PowerShell:
+
+```powershell
+winget install Git.Git
+winget install Docker.DockerDesktop
+winget install OpenJS.NodeJS.LTS
+powershell -c "irm bun.sh/install.ps1 | iex"
+```
+
+Docker Desktop richiede WSL2. Dopo l'installazione riapri PowerShell e verifica `git --version`, `docker --version`, `node --version` e `bun --version`. Gli avvisi di `supabase start` su Analytics e sulla disponibilità di una CLI più recente si possono ignorare.
 
 ## Hosting
 

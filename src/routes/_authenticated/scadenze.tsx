@@ -96,6 +96,12 @@ function Deadlines() {
     }
   };
   const cancel = async (item: Deadline) => {
+    if (
+      !confirm(
+        `Annullare la scadenza "${item.title}"? Non verrà registrato alcun movimento e l'operazione non si può ripristinare.`,
+      )
+    )
+      return;
     const { error } = await supabase.rpc("cancel_deadline", { _id: item.id });
     if (error) toast.error(errMsg(error));
     else {
@@ -201,7 +207,7 @@ function Deadlines() {
                             Completa
                           </Button>
                           <Button size="sm" variant="ghost" onClick={() => void cancel(item)}>
-                            Annulla
+                            Annulla scadenza
                           </Button>
                         </>
                       ) : (
