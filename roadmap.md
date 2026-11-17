@@ -18,6 +18,8 @@ Il branch operativo è `migration/standalone-stack`. Il database usa Supabase Po
 - [x] Scrittura delle spese condivise consentita solo tramite RPC validate.
 - [x] Verifiche RLS, privilegi anonimi, isolamento e integrità per le aree finanziarie.
 - [x] Test di concorrenza con sessioni PostgreSQL indipendenti.
+- [x] Deadlock tra accettazione inviti, nuovi inviti e modifica delle membership coperti da test di concorrenza.
+- [x] Audit dei privilegi codificato in `supabase/tests/privileges.sql`: allowlist delle RPC esposte ad `authenticated` e delle scritture dirette consentite, nessun accesso `anon`/`PUBLIC`, funzioni trigger non invocabili, `search_path` sicuro sulle funzioni `SECURITY DEFINER`, RLS su tutte le tabelle, viste `security_invoker`.
 - [x] Stack applicativo autonomo basato su React, TanStack Start, Supabase e Bun.
 - [x] Rimozione dei metadati e dei riferimenti operativi della piattaforma precedente.
 - [x] Rimozione di Drizzle: Supabase SQL è l'unica fonte autorevole per lo schema.
