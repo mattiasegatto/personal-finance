@@ -29,15 +29,12 @@ export const Route = createFileRoute("/_authenticated/categorie")({
 
 function Categories() {
   const { data } = useSuspenseQuery(financeQuery);
-  const roots = data.categories.filter((c) => !c.parent_id);
+  // Solo le categorie utilizzabili: quelle archiviate restano nei movimenti storici.
+  const usable = data.categories.filter((c) => c.usable);
+  const roots = usable.filter((c) => !c.parent_id);
 
   const Row = ({ c, sub }: { c: (typeof data.categories)[number]; sub?: boolean }) => (
-    <li
-      className={`py-2 ${sub ? "pl-6" : "font-medium"} ${c.archived_at ? "text-muted-foreground" : ""}`}
-    >
-      {c.name}
-      {c.archived_at && " (archiviata)"}
-    </li>
+    <li className={`py-2 ${sub ? "pl-6" : "font-medium"}`}>{c.name}</li>
   );
 
   return (
@@ -58,7 +55,7 @@ function Categories() {
                 .map((r) => (
                   <div key={r.id}>
                     <Row c={r} />
-                    {data.categories
+                    {usable
                       .filter((c) => c.parent_id === r.id)
                       .map((c) => (
                         <Row key={c.id} c={c} sub />

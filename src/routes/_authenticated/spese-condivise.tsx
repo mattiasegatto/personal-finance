@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { spacesQuery } from "@/lib/spaces";
-import { localDateISO, parseCents } from "@/lib/finance";
+import { localDateISO, parseCents, selectableCategories } from "@/lib/finance";
 
 export const Route = createFileRoute("/_authenticated/spese-condivise")({
   loader: ({ context }) => context.queryClient.ensureQueryData(spacesQuery),
@@ -49,6 +49,7 @@ type Settlement = {
 type Category = {
   id: string;
   name: string;
+  label: string;
   parent_id: string | null;
   kind: "income" | "expense" | null;
 };
@@ -128,7 +129,10 @@ function SharedPage() {
         ...s,
         amount_cents: Number(s.amount_cents),
       }));
-      return { members, categories: (cr.data ?? []) as Category[], expenses, settlements };
+      const categories: Category[] = selectableCategories(
+        (cr.data ?? []) as Omit<Category, "label">[],
+      );
+      return { members, categories, expenses, settlements };
     },
   });
   const data = q.data;
@@ -659,7 +663,7 @@ function ExpenseDialog({
                 .filter((c) => c.kind === "expense" || c.parent_id !== null)
                 .map((c) => (
                   <SelectItem key={c.id} value={c.id}>
-                    {c.name}
+                    {c.label}
                   </SelectItem>
                 ))}
             </SelectContent>

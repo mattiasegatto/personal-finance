@@ -72,6 +72,23 @@ export function isCategoryUsable(
   return !parent?.archived_at;
 }
 
+/**
+ * Categorie attive selezionabili, con etichetta "Padre › Figlia" e ordinate per etichetta.
+ * Riceve solo categorie non archiviate: una figlia il cui padre manca (archiviato) è esclusa.
+ */
+export function selectableCategories<
+  T extends { id: string; name: string; parent_id: string | null },
+>(active: readonly T[]): (T & { label: string })[] {
+  const byId = new Map(active.map((c) => [c.id, c]));
+  return active
+    .filter((c) => !c.parent_id || byId.has(c.parent_id))
+    .map((c) => {
+      const parent = c.parent_id ? byId.get(c.parent_id) : undefined;
+      return { ...c, label: parent ? `${parent.name} › ${c.name}` : c.name };
+    })
+    .sort((a, b) => a.label.localeCompare(b.label, "it"));
+}
+
 /** Dati finanziari dello spazio personale: la RLS restituisce solo ciò che appartiene all'utente. */
 export const financeQuery = queryOptions({
   queryKey: ["finance"],

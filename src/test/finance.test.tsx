@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isCategoryUsable, parseCents } from "@/lib/finance";
+import { isCategoryUsable, parseCents, selectableCategories } from "@/lib/finance";
 
 describe("parseCents", () => {
   it("converte importi italiani in centesimi interi", () => {
@@ -32,5 +32,24 @@ describe("isCategoryUsable", () => {
     expect(isCategoryUsable(child, byId)).toBe(false);
     expect(isCategoryUsable(parent, byId)).toBe(false);
     expect(isCategoryUsable(active, byId)).toBe(true);
+  });
+});
+
+describe("selectableCategories", () => {
+  it("etichetta le sottocategorie con il padre ed esclude le figlie di padri archiviati", () => {
+    // Regressione: nelle spese condivise due "Spesa alimentare" erano indistinguibili.
+    const rows = selectableCategories([
+      { id: "home", name: "Casa", parent_id: null },
+      { id: "food-a", name: "Spesa alimentare", parent_id: "home" },
+      { id: "daily", name: "Vita quotidiana", parent_id: null },
+      { id: "food-b", name: "Spesa alimentare", parent_id: "daily" },
+      { id: "orphan", name: "Orfana", parent_id: "archived-parent" },
+    ]);
+    expect(rows.map((r) => r.label)).toEqual([
+      "Casa",
+      "Casa › Spesa alimentare",
+      "Vita quotidiana",
+      "Vita quotidiana › Spesa alimentare",
+    ]);
   });
 });
