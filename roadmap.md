@@ -41,6 +41,7 @@ Il branch operativo è `migration/standalone-stack`. Il database usa Supabase Po
 - [x] Regressione aggiunta e verificata: un utente autenticato non può interrogare l'esistenza dello spazio personale di un altro utente.
 - [x] La verifica è stata eseguita senza collegarsi a un database remoto e senza effettuare deploy.
 - [x] Verifica funzionale interfaccia ↔ database su stack locale (17/11/2026): 5 difetti corretti con regressioni, 3 decisioni di prodotto aperte. Dettagli in `docs/verification/2026-11-17-verifica-funzionale.md`.
+- [x] Categorie fisse: set predefinito uguale per ogni spazio (gli spazi condivisi ricevono solo le spese), creato automaticamente e non modificabile dai client. Sostituisce la personalizzazione delle categorie prevista in origine.
 
 ## Lavori in corso
 

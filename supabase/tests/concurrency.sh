@@ -133,6 +133,8 @@ if [[ "$write_status" -eq 0 ]] || ! grep -q 'Il conto è archiviato' "$account_w
 fi
 
 # Session A holds the parent-category row lock while session B creates a child.
+# Categories are a fixed set: only administrative sessions (migrations) can
+# write them, so session B runs without a client role.
 docker exec "$container" psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 \
   --command "begin; update public.categories set archived_at = now() where id = '$parent_category_id'; select pg_sleep(2); commit;" \
   >"$category_archive_log" 2>&1 &
@@ -142,8 +144,6 @@ sleep 0.25
 set +e
 docker exec -i "$container" psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 >"$category_write_log" 2>&1 <<SQL
 begin;
-select set_config('request.jwt.claims', '{"sub":"$user_id","role":"authenticated"}', true);
-set local role authenticated;
 insert into public.categories(space_id, parent_id, name)
 values ('$space_id', '$parent_category_id', 'Late child category');
 commit;

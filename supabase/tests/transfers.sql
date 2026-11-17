@@ -112,8 +112,8 @@ begin
 
   -- L'annullamento logico di un trasferimento resta consentito anche dopo
   -- l'archiviazione dei conti, come previsto dalla regola applicativa.
-  insert into public.categories(space_id,kind,name) values(sa,'expense','Spesa archiviazione')
-  returning id into arch_cat;
+  select id into arch_cat from public.categories
+  where space_id=sa and name='Spesa alimentare' and archived_at is null;
   arch_transfer := public.create_transfer(a1,a2,100000,'2026-11-13','Transfer archiviabile');
   insert into public.transactions(space_id,account_id,category_id,direction,amount_cents,occurred_on)
   values(sa,a2,arch_cat,'outflow',120000,'2026-11-13');

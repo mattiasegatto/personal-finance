@@ -21,12 +21,19 @@ begin
 
   perform set_config('request.jwt.claims',json_build_object('sub',ua,'role','authenticated','email','shared-a@test.local')::text,true);
   execute 'set local role authenticated';
-  insert into public.categories(space_id,kind,name) values(sh,'expense','Spese comuni') returning id into parent_cat;
-  insert into public.categories(space_id,parent_id,name) values(sh,parent_cat,'Alimentari') returning id into cat_id;
-  if not exists(select 1 from public.categories where id=cat_id and space_id=sh) then raise exception 'FAIL categoria condivisa'; end if; n:=n+1;
+  -- Set fisso: lo spazio condiviso nasce con la sola parte "spese" delle categorie predefinite.
+  select id into parent_cat from public.categories where space_id=sh and parent_id is null and name='Vita quotidiana';
+  select id into cat_id from public.categories where space_id=sh and parent_id=parent_cat and name='Spesa alimentare';
+  if cat_id is null then raise exception 'FAIL categoria condivisa predefinita'; end if; n:=n+1;
+  if (select count(*) from public.categories where space_id=sh) <> 7
+    or exists(select 1 from public.categories where space_id=sh and kind='income') then
+    raise exception 'FAIL set predefinito dello spazio condiviso'; end if; n:=n+1;
+  begin insert into public.categories(space_id,kind,name) values(sh,'expense','Personalizzata condivisa'); ok:=false;
+  exception when insufficient_privilege then ok:=true; end;
+  if not ok then raise exception 'FAIL client crea categoria condivisa'; end if; n:=n+1;
 
   insert into public.accounts(space_id,name,type,currency) values(sa,'Conto test','checking','EUR') returning id into account_id;
-  insert into public.categories(space_id,kind,name) values(sa,'expense','Spese test') returning id into personal_cat;
+  select id into personal_cat from public.categories where space_id=sa and name='Spesa alimentare';
   insert into public.transactions(space_id,account_id,category_id,direction,amount_cents,occurred_on,description)
   values(sa,account_id,personal_cat,'outflow',10000,current_date,'Spesa collegabile') returning id into tx_id;
 
@@ -124,7 +131,10 @@ begin
     raise exception 'FAIL annullamento spesa'; end if; n:=n+1;
 
   -- A child category whose parent is archived cannot be reused or extended.
+  -- Archiving is an administrative (migration) operation: clients cannot do it.
+  execute 'reset role';
   update public.categories set archived_at=now() where id=parent_cat;
+  execute 'set local role authenticated';
   begin
     perform public.save_shared_expense(null,sh,current_date,'Padre archiviato',cat_id,100,ua,'equal',
       jsonb_build_array(jsonb_build_object('member_user_id',ua,'amount_cents',100)),null);
@@ -132,14 +142,15 @@ begin
   exception when others then ok:=true; end;
   if not ok then raise exception 'FAIL spesa con categoria figlia di un padre archiviato'; end if; n:=n+1;
 
+  execute 'reset role';
   begin
     insert into public.categories(space_id,parent_id,name) values(sh,parent_cat,'Figlia tardiva');
     ok:=false;
   exception when others then ok:=true; end;
+  execute 'set local role authenticated';
   if not ok then raise exception 'FAIL creazione figlia sotto categoria padre archiviata'; end if; n:=n+1;
 
-  insert into public.categories(space_id,kind,name)
-  values(sh,'expense','Categoria attiva test archivio') returning id into active_cat;
+  select id into active_cat from public.categories where space_id=sh and name='Utenze';
 
   -- An archived shared space is read-only: no new expense, settlement or category.
   update public.spaces set archived_at=now() where id=sh;
@@ -156,10 +167,12 @@ begin
   exception when others then ok:=true; end;
   if not ok then raise exception 'FAIL nuovo rimborso in spazio archiviato'; end if; n:=n+1;
 
+  execute 'reset role';
   begin
     insert into public.categories(space_id,kind,name) values(sh,'expense','Categoria tardiva');
     ok:=false;
   exception when others then ok:=true; end;
+  execute 'set local role authenticated';
   if not ok then raise exception 'FAIL nuova categoria in spazio archiviato'; end if; n:=n+1;
 
   execute 'reset role';

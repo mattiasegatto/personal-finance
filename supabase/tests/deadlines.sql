@@ -13,8 +13,11 @@ begin
  execute 'set local role authenticated';
  select id into s from public.spaces where created_by=u and kind='personal';
  insert into public.accounts(space_id,name,type,currency) values(s,'Conto scadenze','checking','EUR') returning id into a;
+ -- Categorie di prova create come farebbe una migrazione: i client non possono crearle.
+ execute 'reset role';
  insert into public.categories(space_id,kind,name) values(s,'expense','Scadenze test') returning id into c;
  insert into public.categories(space_id,parent_id,name) values(s,c,'Sottocategoria scadenze') returning id into subc;
+ execute 'set local role authenticated';
  insert into public.deadlines(space_id,account_id,category_id,direction,amount_cents,title,due_on)
  values(s,a,subc,'outflow',4567,'Bolletta test',current_date) returning id into d;
  begin
@@ -25,19 +28,23 @@ begin
    if sqlerrm not like '%scadenza aperta%' then raise; end if;
  end;
  begin
+   execute 'reset role';
    update public.categories set archived_at=now() where id=c;
    raise exception 'TEST_FAILURE_CATEGORY_ARCHIVE_WAS_ALLOWED';
  exception when others then
    if sqlerrm = 'TEST_FAILURE_CATEGORY_ARCHIVE_WAS_ALLOWED' then raise; end if;
    if sqlerrm not like '%scadenza aperta%' then raise; end if;
  end;
+ execute 'set local role authenticated';
  begin
+   execute 'reset role';
    update public.categories set archived_at=now() where id=c;
    raise exception 'TEST_FAILURE_PARENT_CATEGORY_ARCHIVE_WAS_ALLOWED';
  exception when others then
    if sqlerrm = 'TEST_FAILURE_PARENT_CATEGORY_ARCHIVE_WAS_ALLOWED' then raise; end if;
    if sqlerrm not like '%scadenza aperta%' then raise; end if;
  end;
+ execute 'set local role authenticated';
  -- A caller-settable custom GUC must not authorize a direct state transition.
  perform set_config('app.deadline_rpc','on',true);
  begin
@@ -58,7 +65,9 @@ begin
  exception when others then
    if sqlerrm not like '%non è più da completare%' then raise; end if;
  end;
+ execute 'reset role';
  update public.categories set archived_at=now() where id=c;
+ execute 'set local role authenticated';
  begin
    insert into public.deadlines(space_id,account_id,category_id,direction,amount_cents,title,due_on)
    values(s,a,subc,'outflow',4567,'Scadenza con padre archiviato',current_date);

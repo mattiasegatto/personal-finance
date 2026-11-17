@@ -15,10 +15,31 @@ begin
   -- come A
   perform set_config('request.jwt.claims', json_build_object('sub',ua,'role','authenticated','email','fa@test.local')::text, true);
   execute 'set local role authenticated';
-  perform public.create_starter_categories(sa);
+  -- Set fisso: lo spazio personale nasce con le categorie predefinite.
   select id into inc from public.categories where space_id = sa and name = 'Stipendio';
   select id into exp from public.categories where space_id = sa and name = 'Spesa alimentare';
-  if inc is null or exp is null then raise exception 'FAIL categorie di partenza'; end if; n := n + 1;
+  if inc is null or exp is null then raise exception 'FAIL categorie predefinite assenti'; end if; n := n + 1;
+  if (select count(*) from public.categories where space_id = sa) <> 10 then
+    raise exception 'FAIL set predefinito incompleto o duplicato'; end if; n := n + 1;
+
+  -- Le categorie sono in sola lettura per i client.
+  begin insert into public.categories(space_id, kind, name) values (sa, 'expense', 'Personalizzata'); ok := false;
+  exception when insufficient_privilege then ok := true; end;
+  if not ok then raise exception 'FAIL client crea una categoria'; end if; n := n + 1;
+  begin update public.categories set name = 'Rinominata' where id = exp; ok := false;
+  exception when others then ok := sqlerrm like '%non modificabili%' or sqlstate = '42501'; end;
+  if not ok then raise exception 'FAIL client rinomina una categoria'; end if; n := n + 1;
+  begin update public.categories set archived_at = now() where id = exp; ok := false;
+  exception when others then ok := sqlerrm like '%non modificabili%' or sqlstate = '42501'; end;
+  if (select archived_at from public.categories where id = exp) is not null then
+    raise exception 'FAIL categoria archiviata dal client'; end if;
+  begin update public.categories set updated_at = now() where id = exp; ok := false;
+  exception when others then ok := sqlerrm like '%non modificabili%'; end;
+  if not ok then raise exception 'FAIL client aggiorna la colonna tecnica delle categorie'; end if; n := n + 1;
+  if not ok then raise exception 'FAIL client archivia una categoria'; end if; n := n + 1;
+  begin perform public.create_starter_categories(sa); ok := false;
+  exception when insufficient_privilege then ok := true; end;
+  if not ok then raise exception 'FAIL client crea categorie di partenza'; end if; n := n + 1;
 
   -- 1-3 conto, modifica, saldo iniziale
   insert into public.accounts(space_id, name, type, initial_balance_cents) values (sa,'Conto test','checking',100000) returning id into acc;
@@ -45,7 +66,8 @@ begin
   if v <> 350000 then raise exception 'FAIL saldo dopo eliminazione %', v; end if; n := n + 1;
   if (select count(*) from public.transaction_revisions where transaction_id = t2) <> 3 then raise exception 'FAIL storico revisioni'; end if; n := n + 1;
 
-  -- Categoria non può diventare padre di sé stessa.
+  -- Categoria non può diventare padre di sé stessa (controllo valido anche per le migrazioni).
+  execute 'reset role';
   insert into public.categories(space_id, kind, name)
   values (sa, 'expense', 'Categoria ciclo test') returning id into cycle_cat;
   begin
@@ -54,6 +76,7 @@ begin
   exception when others then
     ok := true;
   end;
+  execute 'set local role authenticated';
   if not ok then raise exception 'FAIL categoria autoreferenziale accettata'; end if; n := n + 1;
 
   -- regole
@@ -114,12 +137,14 @@ begin
   execute 'create temporary table accounts (id uuid, space_id uuid, archived_at timestamptz) on commit drop';
   execute 'create temporary table categories (id uuid, space_id uuid, archived_at timestamptz, parent_id uuid, kind public.category_kind) on commit drop';
 
+  execute 'reset role';
   begin
     update public.categories set kind='income' where id=exp;
     ok := false;
   exception when others then
     ok := true;
   end;
+  execute 'set local role authenticated';
   if not ok or (select kind from public.categories where id=exp) <> 'expense' then
     raise exception 'FAIL tabella temporanea transactions ha aggirato il controllo delle categorie'; end if;
   n := n + 1;
@@ -138,7 +163,6 @@ begin
   execute 'reset role';
   perform set_config('request.jwt.claims', json_build_object('sub',ub,'role','authenticated','email','fb@test.local')::text, true);
   execute 'set local role authenticated';
-  perform public.create_starter_categories(sb);
   select id into expb from public.categories where space_id = sb and name = 'Spesa alimentare';
   insert into public.accounts(space_id, name) values (sb,'Conto B') returning id into accb;
 

@@ -23,9 +23,8 @@ declare
     'create_shared_space(text)',
     'invite_to_space(uuid,text,space_role)',
     'accept_invitation(uuid)',
-    -- Categories (SECURITY INVOKER, governed by RLS).
+    -- Categories are a fixed set (read-only for clients).
     'category_root_kind(uuid)',
-    'create_starter_categories(uuid)',
     -- Transfers.
     'create_transfer(uuid,uuid,bigint,date,text)',
     'update_transfer(uuid,uuid,uuid,bigint,date,text)',
@@ -49,7 +48,6 @@ declare
   -- revisions, invitations and membership inserts must stay RPC-only.
   allowed_writes text[] := array[
     'accounts:DELETE', 'accounts:INSERT', 'accounts:UPDATE',
-    'categories:INSERT', 'categories:UPDATE',
     'deadlines:INSERT', 'deadlines:UPDATE',
     'financial_debts:INSERT', 'financial_debts:UPDATE',
     'investments:INSERT', 'investments:UPDATE',
@@ -58,6 +56,11 @@ declare
     'space_memberships:DELETE', 'space_memberships:UPDATE',
     'spaces:UPDATE',
     'transactions:INSERT', 'transactions:UPDATE'
+  ];
+
+  allowed_column_writes text[] := array[
+    'categories.updated_at:UPDATE',
+    'space_invitations.status:UPDATE'
   ];
 begin
   -- 1. SECURITY DEFINER functions must pin a search_path ending in pg_temp.
@@ -171,6 +174,24 @@ begin
       and c.relname || ':' || a.privilege_type <> all (allowed_writes)
   loop
     failures := failures || format('Scrittura diretta non approvata per authenticated: %s', r.grant_key);
+  end loop;
+
+  -- 7b. Column-level write grants match the reviewed allowlist exactly:
+  --     categories.updated_at is needed by FOR SHARE in invoker guards (actual
+  --     updates are rejected); space_invitations.status lets owners revoke.
+  for r in
+    select c.relname || '.' || a.attname || ':' || x.privilege_type as grant_key
+    from pg_attribute a
+    join pg_class c on c.oid = a.attrelid
+    join pg_namespace n on n.oid = c.relnamespace
+    cross join lateral aclexplode(a.attacl) x
+    where n.nspname = 'public'
+      and a.attacl is not null
+      and x.grantee in ('authenticated'::regrole, 'anon'::regrole, 0)
+      and x.privilege_type in ('INSERT', 'UPDATE', 'REFERENCES')
+      and c.relname || '.' || a.attname || ':' || x.privilege_type <> all (allowed_column_writes)
+  loop
+    failures := failures || format('Privilegio di colonna non approvato: %s', r.grant_key);
   end loop;
 
   -- 8. Views run with the caller's privileges so RLS still applies.
