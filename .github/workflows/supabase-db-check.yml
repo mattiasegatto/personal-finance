@@ -124,5 +124,18 @@ jobs:
             exit 1
           fi
 
+      - name: Run investment trade integrity and isolation tests
+        shell: bash
+        run: |
+          set +e
+          output=$(docker exec -i "$SUPABASE_DB_CONTAINER" psql --username postgres --dbname postgres --set ON_ERROR_STOP=0 < supabase/tests/investment_trades.sql 2>&1)
+          status=$?
+          set -e
+          printf '%s\\n' "$output"
+          if ! grep -q 'ALL_PASSED:' <<< "$output"; then
+            echo "Investment trade checks did not reach their expected success marker (psql exit: $status)."
+            exit 1
+          fi
+
       - name: Run concurrent write and archival tests
         run: bash supabase/tests/concurrency.sh

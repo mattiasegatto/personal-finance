@@ -414,4 +414,62 @@ if [[ "$manual_accept_status" -ne 0 || "$duplicate_invite_status" -eq 0 ]] \
   exit 1
 fi
 
-echo "ALL_PASSED: transaction, recurrence, deadline, category, membership, invitation and shared-write concurrency checks passed."
+# Two concurrent sales of the same last quota must serialize on the investment
+# row: the second one must see the updated quantity and fail.
+investment_id="$(
+  docker exec -i "$container" psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 \
+    --tuples-only --no-align --quiet <<SQL | tail -n 1
+select set_config('request.jwt.claims', '{"sub":"$user_id","role":"authenticated"}', false) \\g /dev/null
+insert into public.accounts(space_id, name, type, currency, initial_balance_cents)
+select '$space_id', 'Concurrency brokerage', 'brokerage', 'EUR', 0
+where not exists (
+  select 1 from public.accounts where space_id = '$space_id' and name = 'Concurrency brokerage'
+);
+insert into public.investments(space_id, name, type, currency, quantity, invested_amount_cents, current_value_cents)
+values ('$space_id', 'Concurrency ETF', 'etf', 'EUR', 1, 1000, 1000)
+returning id;
+SQL
+)"
+brokerage_id="$(
+  docker exec "$container" psql --username postgres --dbname postgres --tuples-only --no-align \
+    --command "select id from public.accounts where space_id = '$space_id' and name = 'Concurrency brokerage'"
+)"
+first_sale_log="$(mktemp -p "$tmp_dir")"
+second_sale_log="$(mktemp -p "$tmp_dir")"
+
+docker exec -i "$container" psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 >"$first_sale_log" 2>&1 <<SQL &
+begin;
+select set_config('request.jwt.claims', '{"sub":"$user_id","role":"authenticated"}', true);
+set local role authenticated;
+select public.record_investment_trade('$investment_id', '$brokerage_id', 'sell', 1200, 1, current_date, null);
+select pg_sleep(2);
+commit;
+SQL
+first_sale_pid=$!
+sleep 0.5
+
+set +e
+docker exec -i "$container" psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 >"$second_sale_log" 2>&1 <<SQL
+begin;
+select set_config('request.jwt.claims', '{"sub":"$user_id","role":"authenticated"}', true);
+set local role authenticated;
+select public.record_investment_trade('$investment_id', '$brokerage_id', 'sell', 1200, 1, current_date, null);
+commit;
+SQL
+second_sale_status=$?
+wait "$first_sale_pid"
+first_sale_status=$?
+set -e
+
+remaining_quantity="$(
+  docker exec "$container" psql --username postgres --dbname postgres --tuples-only --no-align \
+    --command "select quantity::numeric(10,2) from public.investments where id = '$investment_id'"
+)"
+if [[ "$first_sale_status" -ne 0 || "$second_sale_status" -eq 0 || "$remaining_quantity" != "0.00" ]] \
+  || ! grep -q 'Quote insufficienti' "$second_sale_log"; then
+  cat "$first_sale_log" "$second_sale_log"
+  echo "Concurrent sales of the same quota were not serialized (remaining: $remaining_quantity)."
+  exit 1
+fi
+
+echo "ALL_PASSED: transaction, recurrence, deadline, category, membership, invitation and shared-write and investment-trade concurrency checks passed."

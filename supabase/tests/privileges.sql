@@ -35,6 +35,9 @@ declare
     'unlink_shared_expense_transaction(uuid)',
     'delete_shared_expense(uuid)',
     'delete_shared_settlement(uuid)',
+    -- Investment trades (atomic movement + investment update).
+    'record_investment_trade(uuid,uuid,investment_trade_kind,bigint,numeric,date,text)',
+    'delete_investment_trade(uuid)',
     -- Recurring items and deadlines.
     'next_recurring_date(date,date,recurrence_frequency)',
     'advance_recurring_due(uuid,date)',
