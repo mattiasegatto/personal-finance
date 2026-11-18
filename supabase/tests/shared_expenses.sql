@@ -22,10 +22,10 @@ begin
   perform set_config('request.jwt.claims',json_build_object('sub',ua,'role','authenticated','email','shared-a@test.local')::text,true);
   execute 'set local role authenticated';
   -- Set fisso: lo spazio condiviso nasce con la sola parte "spese" delle categorie predefinite.
-  select id into parent_cat from public.categories where space_id=sh and parent_id is null and name='Vita quotidiana';
+  select id into parent_cat from public.categories where space_id=sh and parent_id is null and name='Alimentazione';
   select id into cat_id from public.categories where space_id=sh and parent_id=parent_cat and name='Spesa alimentare';
   if cat_id is null then raise exception 'FAIL categoria condivisa predefinita'; end if; n:=n+1;
-  if (select count(*) from public.categories where space_id=sh) <> 7
+  if (select count(*) from public.categories where space_id=sh) <> 63
     or exists(select 1 from public.categories where space_id=sh and kind='income') then
     raise exception 'FAIL set predefinito dello spazio condiviso'; end if; n:=n+1;
   begin insert into public.categories(space_id,kind,name) values(sh,'expense','Personalizzata condivisa'); ok:=false;

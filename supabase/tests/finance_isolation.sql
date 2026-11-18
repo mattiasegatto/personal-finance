@@ -19,8 +19,13 @@ begin
   select id into inc from public.categories where space_id = sa and name = 'Stipendio';
   select id into exp from public.categories where space_id = sa and name = 'Spesa alimentare';
   if inc is null or exp is null then raise exception 'FAIL categorie predefinite assenti'; end if; n := n + 1;
-  if (select count(*) from public.categories where space_id = sa) <> 10 then
+  if (select count(*) from public.categories where space_id = sa) <> 80
+    or (select count(*) from public.categories where space_id = sa and parent_id is null) <> 17 then
     raise exception 'FAIL set predefinito incompleto o duplicato'; end if; n := n + 1;
+  if public.category_root_kind((select id from public.categories where space_id = sa and name = 'Stipendio')) <> 'income'
+    or (select p.name from public.categories c join public.categories p on p.id = c.parent_id
+        where c.space_id = sa and c.name = 'Spesa alimentare') <> 'Alimentazione' then
+    raise exception 'FAIL struttura del set predefinito'; end if; n := n + 1;
 
   -- Le categorie sono in sola lettura per i client.
   begin insert into public.categories(space_id, kind, name) values (sa, 'expense', 'Personalizzata'); ok := false;
@@ -147,6 +152,29 @@ begin
   execute 'set local role authenticated';
   if not ok or (select kind from public.categories where id=exp) <> 'expense' then
     raise exception 'FAIL tabella temporanea transactions ha aggirato il controllo delle categorie'; end if;
+  n := n + 1;
+
+  -- Migrazioni: una categoria in uso si può spostare restando dello stesso tipo,
+  -- ma non può diventare di un altro tipo (i movimenti diventerebbero incoerenti).
+  execute 'reset role';
+  if not exists (select 1 from public.transactions where category_id = exp) then
+    raise exception 'FAIL precondizione: categoria di spesa senza movimenti'; end if;
+  update public.categories
+  set parent_id = (select id from public.categories where space_id = sa and parent_id is null and name = 'Altre spese')
+  where id = exp;
+  update public.categories
+  set parent_id = (select id from public.categories where space_id = sa and parent_id is null and name = 'Alimentazione')
+  where id = exp;
+  begin
+    update public.categories
+    set parent_id = (select id from public.categories where space_id = sa and parent_id is null and name = 'Lavoro')
+    where id = exp;
+    ok := false;
+  exception when others then
+    ok := sqlerrm like '%già usata%';
+  end;
+  execute 'set local role authenticated';
+  if not ok then raise exception 'FAIL categoria in uso spostata in un tipo diverso'; end if;
   n := n + 1;
 
   begin

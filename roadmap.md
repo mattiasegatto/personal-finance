@@ -42,6 +42,7 @@ Il branch operativo è `migration/standalone-stack`. Il database usa Supabase Po
 - [x] La verifica è stata eseguita senza collegarsi a un database remoto e senza effettuare deploy.
 - [x] Verifica funzionale interfaccia ↔ database su stack locale (17/11/2026): 5 difetti corretti con regressioni, 3 decisioni di prodotto aperte. Dettagli in `docs/verification/2026-11-17-verifica-funzionale.md`.
 - [x] Categorie fisse: set predefinito uguale per ogni spazio (gli spazi condivisi ricevono solo le spese), creato automaticamente e non modificabile dai client. Sostituisce la personalizzazione delle categorie prevista in origine.
+- [x] Elenco definitivo delle categorie (v1, 18/11/2026): 4 gruppi di entrate e 13 di spese, 63 sottocategorie. Le categorie provvisorie sono state trasformate al loro posto, senza toccare movimenti, ricorrenze, scadenze e spese condivise. La rata di mutuo e finanziamenti si registra interamente come spesa.
 
 ## Lavori in corso
 
